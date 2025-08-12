@@ -20,3 +20,9 @@ img.thumb { max-width: 96px; max-height: 96px; border-radius: 6px; border:1px so
 nav a { color:#9ec1ff; text-decoration:none; margin-right: 12px; }
 nav a.active { text-decoration: underline; }
 .hidden { display:none !important; }
+.muted { color:#9aa8bd; font-size: 0.9rem; }
+
+/* NEU: Tabs im Login/Register */
+.tabs { display:flex; gap:8px; margin-bottom:12px; }
+.tab { background:#101620; border:1px solid #233045; color:#cfe1ff; padding:8px 12px; border-radius:6px; cursor:pointer; }
+.tab.active { background:#1b2432; border-color:#34507a; }

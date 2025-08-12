@@ -1,3 +1,4 @@
+// js/main.js
 import { startRouter, addRoute } from './router.js'
 import { renderAuth } from './ui/renderAuth.js'
 import { renderDashboard } from './ui/renderDashboard.js'

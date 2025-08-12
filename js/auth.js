@@ -1,23 +1,38 @@
-import { supabase } from './supabaseClient.js'
+// js/auth.js
+import { supabase, usernameToEmail } from './supabaseClient.js'
 
-export async function signUp({ email, password, username }) {
-  // 1) Auth anlegen
-  const { data: authData, error: authError } = await supabase.auth.signUp({ email, password })
-  if (authError) throw authError
-
-  // 2) Profil (username) speichern – id = user.id
-  const user = authData.user
-  const { error: profileError } = await supabase.from('profiles').insert({
-    id: user.id, username
-  })
-  if (profileError) throw profileError
-
-  return user
+// Profile wird NACH erfolgreichem Login/SignUp angelegt/aktualisiert (dann ist Session sicher da)
+async function upsertOwnProfile({ id, username }) {
+  const { error } = await supabase.from('profiles').upsert({ id, username }, { onConflict: 'id' })
+  if (error) throw error
 }
 
-export async function signIn({ email, password }) {
+export async function signUpUsernamePassword({ username, password }) {
+  const email = usernameToEmail(username)
+  // SignUp
+  const { data, error } = await supabase.auth.signUp({ email, password })
+  if (error) throw error
+
+  // Falls Email-Confirm AN ist, gibt es evtl. noch keine Session -> dann Nutzer um Login bitten
+  const user = data.user
+  const hasSession = !!data.session
+
+  if (!hasSession) {
+    // Kein Insert in profiles hier (würde an RLS scheitern). Wir geben nur den User zurück.
+    return { user, needsLogin: true }
+  }
+
+  // Session existiert -> Profil anlegen
+  await upsertOwnProfile({ id: user.id, username })
+  return { user, needsLogin: false }
+}
+
+export async function signInUsernamePassword({ username, password }) {
+  const email = usernameToEmail(username)
   const { data, error } = await supabase.auth.signInWithPassword({ email, password })
   if (error) throw error
+  // Nach erfolgreichem Login sicher Profil anlegen/aktualisieren (idempotent)
+  await upsertOwnProfile({ id: data.user.id, username })
   return data.user
 }
 
