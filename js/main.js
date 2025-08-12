@@ -1,0 +1,63 @@
+import { $, h, clear } from "./dom.js";
+import { startRouter, onRoute, go } from "./router.js";
+import { renderAuth } from "./auth/authUI.js";
+import { renderHeroesList } from "./heroes/listView.js";
+import { renderHeroForm } from "./heroes/formView.js";
+import { getSession, signOut } from "./auth/session.js";
+
+const app = $("#app");
+const nav = $("#nav");
+
+function renderNav(session) {
+  clear(nav);
+  if (!session) {
+    nav.append(
+      link("/auth", "Anmelden")
+    );
+  } else {
+    nav.append(
+      link("/heroes", "Helden"),
+      a(() => go("/heroes/new"), "Neu"),
+      a(async () => { await signOut(); go("/auth"); }, "Abmelden")
+    );
+  }
+
+  function link(path, label) {
+    const el = a(() => go(path), label);
+    if (location.hash === `#${path}`) el.classList.add("active");
+    return el;
+  }
+  function a(onClick, label) {
+    const el = h("a", { href: "javascript:void(0)" }, label);
+    el.addEventListener("click", (e) => { e.preventDefault(); onClick(); });
+    return el;
+  }
+}
+
+async function route(path) {
+  const session = await getSession();
+  renderNav(session);
+
+  // Guard
+  const needsAuth = ["/", "/heroes", "/heroes/new"].some(p => path.startsWith(p));
+  const isAuthRoute = path.startsWith("/auth");
+  if (!session && !isAuthRoute) return go("/auth");
+
+  if (!path || path === "/") path = "/heroes";
+
+  if (path === "/auth") return renderAuth(app);
+  if (path === "/heroes") return renderHeroesList(app);
+  if (path === "/heroes/new") return renderHeroForm(app, null);
+
+  const match = path.match(/^\/heroes\/([0-9a-fA-F-]{36})$/);
+  if (match) return renderHeroForm(app, match[1]);
+
+  // Fallback
+  clear(app).append(h("div", { class: "panel" }, h("h2", {}, "Seite nicht gefunden")));
+}
+
+onRoute(route);
+startRouter();
+
+// Beim ersten Laden zur korrekten Seite
+if (!location.hash) go("/heroes");
