@@ -3,99 +3,100 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Borbarad Supabase Demo</title>
+  <title>Borbarad – Login erforderlich</title>
   <link rel="stylesheet" href="./assets/style.css" />
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script defer src="./assets/app.js"></script>
 </head>
 <body>
-  <header>
-    <h1>Borbarad</h1>
-    <p>Supabase Demo – Auth (Username), Nachrichten & Bilder</p>
-  </header>
-
-  <main>
-    <!-- AUTH -->
-    <section id="auth-section">
-      <div class="tabs">
-        <button id="tab-login" class="tab active">Einloggen</button>
-        <button id="tab-register" class="tab">Registrieren</button>
-      </div>
-
-      <!-- Login -->
-      <form id="login-form" class="card">
+  <!-- LOGIN-GATE -->
+  <section id="gate" class="gate">
+    <div class="card">
+      <h1>Anmelden</h1>
+      <form id="login-form" class="grid">
         <label>
-          <span>Nutzername oder E-Mail</span>
-          <input id="login-identifier" type="text" placeholder="z. B. frodo oder frodo@shire.me" required />
+          <span>Nutzername</span>
+          <input id="login-username" type="text" minlength="3" maxlength="30"
+                 pattern="^[a-zA-Z0-9_.-]+$" autocapitalize="none" autocomplete="username" required />
         </label>
         <label>
           <span>Passwort</span>
           <input id="login-password" type="password" autocomplete="current-password" required />
         </label>
-        <button type="submit">Einloggen</button>
+        <label class="remember">
+          <input id="remember" type="checkbox" checked />
+          <span>Angemeldet bleiben</span>
+        </label>
+        <div class="row">
+          <button type="submit" id="btn-login">Einloggen</button>
+          <button type="button" id="btn-to-register" class="secondary">Registrieren</button>
+        </div>
         <p id="login-status" class="muted"></p>
       </form>
 
-      <!-- Register -->
-      <form id="register-form" class="card hidden">
+      <form id="register-form" class="grid hidden">
         <label>
-          <span>Nutzername</span>
-          <input id="reg-username" type="text" minlength="3" maxlength="30" pattern="^[a-zA-Z0-9_\\.\\-]+$" placeholder="nur Buchstaben/Zahlen/_ . -" required />
-        </label>
-        <label>
-          <span>E-Mail</span>
-          <input id="reg-email" type="email" autocomplete="email" required />
+          <span>Nutzername (einzigartig)</span>
+          <input id="reg-username" type="text" minlength="3" maxlength="30"
+                 pattern="^[a-zA-Z0-9_.-]+$" autocapitalize="none" required />
         </label>
         <label>
           <span>Passwort</span>
           <input id="reg-password" type="password" autocomplete="new-password" minlength="6" required />
         </label>
-        <button type="submit">Registrieren</button>
-        <p class="muted">Hinweis: Supabase kann eine Bestätigungs-Mail schicken (Projekt-Einstellung).</p>
+        <label class="remember">
+          <input id="remember-reg" type="checkbox" checked />
+          <span>Angemeldet bleiben</span>
+        </label>
+        <div class="row">
+          <button type="submit" id="btn-register">Konto anlegen</button>
+          <button type="button" id="btn-to-login" class="secondary">Zurück zum Login</button>
+        </div>
+        <p class="muted">Hinweis: Es wird keine echte E-Mail benötigt.</p>
         <p id="register-status" class="muted"></p>
       </form>
+    </div>
+  </section>
 
-      <div id="authed" class="hidden">
-        <p>Angemeldet als <strong id="whoami"></strong></p>
-        <button id="logout-btn">Logout</button>
-      </div>
-    </section>
+  <!-- APP (wird erst nach Login sichtbar) -->
+  <div id="app" class="hidden">
+    <header>
+      <h1>Borbarad</h1>
+      <p>Angemeldet als <strong id="whoami"></strong> • <button id="logout-btn">Logout</button></p>
+    </header>
 
-    <!-- Nachrichten -->
-    <section class="composer">
-      <form id="message-form">
-        <input id="message-input" type="text" placeholder="Nachricht eingeben…" maxlength="500" required />
-        <button type="submit">Senden</button>
-      </form>
-      <p id="status" class="muted"></p>
-      <p id="auth-hint-msg" class="muted hidden">Zum Senden bitte einloggen.</p>
-    </section>
+    <main>
+      <section class="composer">
+        <form id="message-form">
+          <input id="message-input" type="text" placeholder="Nachricht eingeben…" maxlength="500" required />
+          <button type="submit">Senden</button>
+        </form>
+        <p id="status" class="muted"></p>
+      </section>
 
-    <section>
-      <h2>Nachrichten</h2>
-      <ul id="messages"></ul>
-    </section>
+      <section>
+        <h2>Nachrichten</h2>
+        <ul id="messages"></ul>
+      </section>
 
-    <!-- Bild-Upload -->
-    <section class="uploader">
-      <h2>Bilder hochladen</h2>
-      <form id="upload-form">
-        <input id="file-input" type="file" accept="image/*" />
-        <button type="submit">Hochladen</button>
-      </form>
-      <p id="upload-status" class="muted"></p>
-      <p id="auth-hint-up" class="muted hidden">Zum Hochladen bitte einloggen.</p>
-    </section>
+      <section class="uploader">
+        <h2>Bilder hochladen</h2>
+        <form id="upload-form">
+          <input id="file-input" type="file" accept="image/*" />
+          <button type="submit">Hochladen</button>
+        </form>
+        <p id="upload-status" class="muted"></p>
+      </section>
 
-    <!-- Galerie -->
-    <section>
-      <h2>Galerie</h2>
-      <div id="gallery" class="gallery"></div>
-    </section>
-  </main>
+      <section>
+        <h2>Galerie</h2>
+        <div id="gallery" class="gallery"></div>
+      </section>
+    </main>
 
-  <footer>
-    <small>Powered by Supabase & GitHub Pages</small>
-  </footer>
+    <footer>
+      <small>Powered by Supabase & GitHub Pages</small>
+    </footer>
+  </div>
 </body>
 </html>
