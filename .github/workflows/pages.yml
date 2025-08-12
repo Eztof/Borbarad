@@ -23,12 +23,17 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Setup Pages
+
+      - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
+        with:
+          enablement: true   # <-- wichtig: erstellt/aktiviert Pages-Site, falls noch nicht vorhanden
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: .
+          path: .            # dein statisches Site-Root
+
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
