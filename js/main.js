@@ -11,13 +11,10 @@ const nav = $("#nav");
 function renderNav(session) {
   clear(nav);
   if (!session) {
-    nav.append(
-      link("/auth", "Anmelden")
-    );
+    nav.append(link("/auth", "Anmelden"));
   } else {
     nav.append(
       link("/heroes", "Helden"),
-      a(() => go("/heroes/new"), "Neu"),
       a(async () => { await signOut(); go("/auth"); }, "Abmelden")
     );
   }
@@ -38,11 +35,8 @@ async function route(path) {
   const session = await getSession();
   renderNav(session);
 
-  // Guard
-  const needsAuth = ["/", "/heroes", "/heroes/new"].some(p => path.startsWith(p));
   const isAuthRoute = path.startsWith("/auth");
   if (!session && !isAuthRoute) return go("/auth");
-
   if (!path || path === "/") path = "/heroes";
 
   if (path === "/auth") return renderAuth(app);
@@ -52,12 +46,9 @@ async function route(path) {
   const match = path.match(/^\/heroes\/([0-9a-fA-F-]{36})$/);
   if (match) return renderHeroForm(app, match[1]);
 
-  // Fallback
   clear(app).append(h("div", { class: "panel" }, h("h2", {}, "Seite nicht gefunden")));
 }
 
 onRoute(route);
 startRouter();
-
-// Beim ersten Laden zur korrekten Seite
 if (!location.hash) go("/heroes");
