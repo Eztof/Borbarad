@@ -1,46 +1,34 @@
-:root {
-  --bg: #0b0d10; --fg: #e6e9ef; --muted: #98a2b3; --acc: #6ee7b7; --card: #12161b;
-  --border: #1f2630;
-}
+:root { --bg:#0b0d10; --fg:#e6e9ef; --muted:#98a2b3; --acc:#6ee7b7; --card:#12161b; --border:#1f2630; }
 * { box-sizing: border-box; }
-body {
-  margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans";
-  background: linear-gradient(180deg, #0b0d10, #12161b 50%, #0b0d10 100%);
-  color: var(--fg);
-}
-header, footer { padding: 24px; text-align: center; }
-header h1 { margin: 0; font-size: 28px; }
-header p { margin: 8px 0 0; color: var(--muted); }
-
-main { max-width: 800px; margin: 0 auto; padding: 16px; }
-section { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 16px; margin-bottom: 16px; }
-
-.composer form { display: flex; gap: 8px; }
-input[type="text"] {
-  flex: 1; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--border); background: #0d1117; color: var(--fg);
-}
-button {
-  padding: 12px 16px; border: 0; border-radius: 12px; background: var(--acc); color: #0b0d10; font-weight: 700; cursor: pointer;
-}
-button:disabled { opacity: .6; cursor: not-allowed; }
-
-ul#messages { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
-ul#messages li {
-  padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: #0f1318;
-}
-ul#messages time { color: var(--muted); font-size: 12px; display: block; margin-top: 6px; }
+body { margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans"; background:linear-gradient(180deg,#0b0d10,#12161b 50%,#0b0d10); color:var(--fg); }
+header, footer { padding:24px; text-align:center; }
+header h1 { margin:0; font-size:28px; }
+header p { margin:8px 0 0; color:var(--muted); }
+main { max-width: 900px; margin: 0 auto; padding: 16px; }
+section { background: var(--card); border:1px solid var(--border); border-radius:16px; padding:16px; margin-bottom:16px; }
 .muted { color: var(--muted); }
+.hidden { display:none; }
+
+.card { display:grid; gap:10px; }
+label { display:grid; gap:6px; }
+input[type="text"], input[type="email"], input[type="password"] { padding:12px 14px; border-radius:12px; border:1px solid var(--border); background:#0d1117; color:var(--fg); }
+button { padding:12px 16px; border:0; border-radius:12px; background:var(--acc); color:#0b0d10; font-weight:700; cursor:pointer; }
+button:disabled { opacity:.6; cursor:not-allowed; }
+
+/* Tabs */
+.tabs { display:flex; gap:8px; margin-bottom:12px; }
+.tab { background:#0f1318; border:1px solid var(--border); color:var(--fg); }
+.tab.active { background:var(--acc); color:#0b0d10; }
+
+/* Nachrichten */
+.composer form { display:flex; gap:8px; }
+#messages { list-style:none; padding:0; margin:0; display:grid; gap:10px; }
+#messages li { padding:12px 14px; border:1px solid var(--border); border-radius:12px; background:#0f1318; }
+#messages time { color:var(--muted); font-size:12px; display:block; margin-top:6px; }
 
 /* Galerie */
-.uploader form { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.gallery {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 10px;
-}
-.gallery figure {
-  margin: 0; padding: 8px; border: 1px solid var(--border); border-radius: 12px; background: #0f1318;
-  display: flex; flex-direction: column; gap: 6px;
-}
-.gallery img { width: 100%; height: 120px; object-fit: cover; border-radius: 8px; }
-.gallery figcaption { font-size: 12px; color: var(--muted); word-break: break-all; }
+.uploader form { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.gallery { display:grid; grid-template-columns: repeat(auto-fill, minmax(140px,1fr)); gap:10px; }
+.gallery figure { margin:0; padding:8px; border:1px solid var(--border); border-radius:12px; background:#0f1318; display:flex; flex-direction:column; gap:6px; }
+.gallery img { width:100%; height:120px; object-fit:cover; border-radius:8px; }
+.gallery figcaption { font-size:12px; color:var(--muted); word-break:break-all; }
