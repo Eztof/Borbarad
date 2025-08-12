@@ -3,19 +3,19 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Borbarad x Supabase</title>
+  <title>Borbarad Supabase Demo</title>
   <link rel="stylesheet" href="./assets/style.css" />
-  <!-- Supabase JS v2 via CDN -->
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script defer src="./assets/app.js"></script>
 </head>
 <body>
   <header>
     <h1>Borbarad</h1>
-    <p>Supabase Demo (Nachrichtenboard mit Realtime)</p>
+    <p>Supabase Demo – Nachrichten & Bilder</p>
   </header>
 
   <main>
+    <!-- Nachrichten -->
     <section class="composer">
       <form id="message-form">
         <input id="message-input" type="text" placeholder="Nachricht eingeben…" maxlength="500" required />
@@ -27,6 +27,22 @@
     <section>
       <h2>Nachrichten</h2>
       <ul id="messages"></ul>
+    </section>
+
+    <!-- Bild-Upload -->
+    <section class="uploader">
+      <h2>Bilder hochladen</h2>
+      <form id="upload-form">
+        <input id="file-input" type="file" accept="image/*" />
+        <button type="submit">Hochladen</button>
+      </form>
+      <p id="upload-status" class="muted"></p>
+    </section>
+
+    <!-- Galerie -->
+    <section>
+      <h2>Galerie</h2>
+      <div id="gallery" class="gallery"></div>
     </section>
   </main>
 
