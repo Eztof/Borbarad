@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Borbarad – Helden-Erstellung</title>
+  <style>
+    html,body{margin:0;padding:0;font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;background:#0b0d10;color:#e9eef3}
+    header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #1b1f26}
+    a.brand{color:#fff;text-decoration:none;font-weight:700;letter-spacing:.3px}
+    .wrap{max-width:980px;margin:0 auto;padding:16px}
+    .card{background:#11161d;border:1px solid #1b1f26;border-radius:10px;padding:16px;margin:16px 0}
+    .row{display:flex;gap:12px;flex-wrap:wrap}
+    .col{flex:1 1 280px;min-width:260px}
+    label{display:block;font-size:.9rem;margin-bottom:6px;opacity:.9}
+    input,select,button,textarea{width:100%;padding:10px;border-radius:8px;border:1px solid #263041;background:#0d1117;color:#e9eef3}
+    button{cursor:pointer}
+    .muted{opacity:.7}
+    .ok{color:#8be28b}
+    .warn{color:#ffd479}
+    .err{color:#ff7b7b}
+    .steps{display:flex;gap:6px;flex-wrap:wrap}
+    .chip{border:1px solid #253041;padding:4px 8px;border-radius:999px;font-size:.85rem}
+    .chip.active{background:#1b2533}
+    .grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+    @media (max-width:720px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    .bbar{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
+    .kpi{display:flex;gap:12px;flex-wrap:wrap;margin:8px 0}
+    .kpi div{background:#0e131a;border:1px solid #1b1f26;border-radius:8px;padding:8px 10px}
+  </style>
+  <script type="module" src="./wizard.js"></script>
+</head>
+<body>
+  <header>
+    <a class="brand" href="./">Borbarad</a>
+    <div id="userBox" class="muted">…</div>
+  </header>
+
+  <div class="wrap">
+    <div class="card">
+      <div class="steps">
+        <div class="chip" id="st1">1 Name</div>
+        <div class="chip" id="st2">2 Spezies</div>
+        <div class="chip" id="st3">3 Kultur</div>
+        <div class="chip" id="st4">4 Profession</div>
+        <div class="chip" id="st5">5 Eigenschaften & SO</div>
+        <div class="chip" id="st6">6 Vor-/Nachteile</div>
+        <div class="chip" id="st7">7 Finalisieren</div>
+      </div>
+    </div>
+
+    <!-- Schritt 1 -->
+    <div class="card" id="view1">
+      <h2>1) Name</h2>
+      <div class="row">
+        <div class="col">
+          <label>Heldenname</label>
+          <input id="nameInput" placeholder="z. B. Yelena von Vinsalt" />
+        </div>
+      </div>
+      <div class="bbar">
+        <button id="startBtn">Entwurf anlegen</button>
+      </div>
+      <div class="muted" id="s1info"></div>
+    </div>
+
+    <!-- Schritt 2 -->
+    <div class="card" id="view2" hidden>
+      <h2>2) Spezies</h2>
+      <div class="row">
+        <div class="col">
+          <label>Spezies</label>
+          <select id="speciesSel"></select>
+        </div>
+      </div>
+      <div class="kpi" id="speciesKpi"></div>
+      <div class="bbar">
+        <button id="s2next">Weiter</button>
+      </div>
+    </div>
+
+    <!-- Schritt 3 -->
+    <div class="card" id="view3" hidden>
+      <h2>3) Kultur</h2>
+      <div class="row">
+        <div class="col">
+          <label>Kultur</label>
+          <select id="cultureSel"></select>
+        </div>
+      </div>
+      <div class="kpi" id="cultureKpi"></div>
+      <div class="bbar">
+        <button id="s3next">Weiter</button>
+      </div>
+    </div>
+
+    <!-- Schritt 4 -->
+    <div class="card" id="view4" hidden>
+      <h2>4) Profession</h2>
+      <div class="row">
+        <div class="col">
+          <label>Profession</label>
+          <select id="professionSel"></select>
+        </div>
+      </div>
+      <div class="muted" id="profReq"></div>
+      <div class="bbar">
+        <button id="s4next">Weiter</button>
+      </div>
+    </div>
+
+    <!-- Schritt 5 -->
+    <div class="card" id="view5" hidden>
+      <h2>5) Eigenschaften & Sozialstatus</h2>
+      <div class="grid">
+        <div><label>MU</label><input id="mu" type="number" min="8" max="14" value="8"></div>
+        <div><label>KL</label><input id="kl" type="number" min="8" max="14" value="8"></div>
+        <div><label>IN</label><input id="intu" type="number" min="8" max="14" value="8"></div>
+        <div><label>CH</label><input id="ch" type="number" min="8" max="14" value="8"></div>
+        <div><label>FF</label><input id="ff" type="number" min="8" max="14" value="8"></div>
+        <div><label>GE</label><input id="ge" type="number" min="8" max="14" value="8"></div>
+        <div><label>KO</label><input id="ko" type="number" min="8" max="14" value="8"></div>
+        <div><label>KK</label><input id="kk" type="number" min="8" max="14" value="8"></div>
+        <div><label>SO</label><input id="so" type="number" min="0" max="13" value="0"></div>
+      </div>
+      <div class="kpi" id="attrKpi"></div>
+      <div class="bbar">
+        <button id="s5next">Weiter</button>
+      </div>
+    </div>
+
+    <!-- Schritt 6 -->
+    <div class="card" id="view6" hidden>
+      <h2>6) Vor- & Nachteile</h2>
+      <div class="row">
+        <div class="col">
+          <label>Aus DB auswählen</label>
+          <select id="traitSel"></select>
+        </div>
+        <div class="col" style="max-width:180px">
+          <label>&nbsp;</label>
+          <button id="addTrait">Hinzufügen</button>
+        </div>
+      </div>
+      <div class="kpi" id="traitKpi"></div>
+      <div id="traitList" class="muted"></div>
+      <div class="bbar">
+        <button id="s6next">Weiter</button>
+      </div>
+    </div>
+
+    <!-- Schritt 7 -->
+    <div class="card" id="view7" hidden>
+      <h2>7) Finalisieren</h2>
+      <div id="budgetBox" class="kpi"></div>
+      <div class="muted">Am Ende von Schritt 6 muss das GP-Konto = 0 sein. (BR – Charaktererschaffung) </div>
+      <div class="bbar">
+        <button id="finalBtn">Finalisieren</button>
+      </div>
+      <div id="finalMsg"></div>
+    </div>
+  </div>
+</body>
+</html>
