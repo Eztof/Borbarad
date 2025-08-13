@@ -4,7 +4,7 @@ export async function listHeroes() {
   const { data, error } = await supabase
     .from("heroes")
     .select("*")
-    .order("updated_at", { ascending: false });
+    .order("created_at", { ascending: false });
   if (error) throw error;
   return data;
 }
@@ -37,5 +37,6 @@ export async function deleteHero(id) {
 }
 
 export function blankAttributes() {
+  // UI-Defaultwerte – fachlich später aus Spezies/Kultur ableitbar
   return { MU: 12, KL: 12, IN: 12, CH: 12, FF: 12, GE: 12, KO: 12, KK: 12 };
 }
