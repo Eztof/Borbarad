@@ -1,5 +1,5 @@
 :root{
---bg:#0b0e12; --panel:#121820; --muted:#8aa0b7; --text:#dce7f5; --accent:#4fc3f7; --accent2:#ffd166;
+  --bg:#0b0e12; --panel:#121820; --muted:#8aa0b7; --text:#dce7f5; --accent:#4fc3f7; --accent2:#ffd166; --good:#3ddc97; --bad:#ef476f;
 }
 *{box-sizing:border-box}
 html,body{height:100%}
@@ -28,13 +28,21 @@ body{margin:0;background:var(--bg);color:var(--text);font:16px/1.4 system-ui,Seg
 .tag{background:#0f1924;border:1px solid #203047;border-radius:999px;padding:2px 8px;color:var(--muted);font-size:12px}
 .grid{display:grid;grid-template-columns:2fr 1fr;gap:14px}
 
-
 .modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:20px}
 .modal .panel{background:var(--panel);border:1px solid #1b2532;border-radius:16px;padding:16px;max-width:760px;width:100%}
-
 
 .empty{padding:30px;text-align:center;color:var(--muted)}
 .small{font-size:12px;color:var(--muted)}
 
-
 .fc, .vis-timeline{background:var(--panel);border:1px solid #1b2532;border-radius:12px;padding:8px}
+
+/* --- Heldenliste + Balken --- */
+.hero-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+.hero-card{background:#0f1722;border:1px solid #223044;border-radius:12px;padding:10px}
+.hero-name{font-weight:700;margin:0 0 8px}
+.kv{display:flex;gap:8px;align-items:center;justify-content:space-between}
+
+.bar{height:14px;background:#0d131b;border:1px solid #1b2532;border-radius:999px;overflow:hidden;position:relative}
+.bar .fill{height:100%;background:linear-gradient(90deg,var(--good),#61e8b1);width:0%}
+.bar.warn .fill{background:linear-gradient(90deg,var(--bad),#ff8aa6)}
+.bar .mark{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px;color:#e8f0ff}

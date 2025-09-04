@@ -1,89 +1,72 @@
 // js/utils.js
 
-// -----------------------------
-// Aventurischer Kalender Basics
-// -----------------------------
 export const AV_MONTHS = [
-  "Praios", "Rondra", "Efferd", "Travia", "Boron", "Hesinde",
-  "Firun", "Tsa", "Phex", "Peraine", "Ingerimm", "Rahja"
+  "Praios","Rondra","Efferd","Travia","Boron","Hesinde",
+  "Firun","Tsa","Phex","Peraine","Ingerimm","Rahja"
 ];
 
-// Beliebige technische Epoche nur für Visualisierung/Umrechnung
 const ISO_EPOCH = "2000-01-01";
+function pad(n){ return String(n).padStart(2,"0"); }
 
-function pad(n) { return String(n).padStart(2, "0"); }
-
-// ---------------
-// Format-Helfer
-// ---------------
-export function formatAvDate({ year, month, day }) {
-  const m = AV_MONTHS[month - 1] || `Monat ${month}`;
-  return `${day}. ${m} ${year} BF`;
+// NULL-SICHER
+export function formatAvDate(av){
+  if(!av || av.year==null || av.month==null || av.day==null) return "—";
+  const m = AV_MONTHS[av.month-1] || `Monat ${av.month}`;
+  return `${av.day}. ${m} ${av.year} BF`;
 }
 
-// ------------------------------
-// Aventurisch <-> fortlaufender Tag
-// ------------------------------
-export function avToDayNumber({ year, month, day }) {
-  const y = Number(year), m = Number(month), d = Number(day);
-  return y * 360 + (m - 1) * 30 + (d - 1); // 360 Tage/Jahr
+export function avToDayNumber({year,month,day}){
+  const y=Number(year), m=Number(month), d=Number(day);
+  return y*360+(m-1)*30+(d-1);
 }
-
-export function dayNumberToAv(num) {
-  const year = Math.floor(num / 360);
-  const rem = num % 360;
-  const month = Math.floor(rem / 30) + 1;
-  const day = (rem % 30) + 1;
-  return { year, month, day };
+export function dayNumberToAv(num){
+  const year=Math.floor(num/360);
+  const rem=num%360;
+  const month=Math.floor(rem/30)+1;
+  const day=(rem%30)+1;
+  return {year,month,day};
 }
-
-// ------------------------------
-// ISO-Umrechnung (nur für Anzeige/Libs)
-// ------------------------------
-export function avToISO(av) {
-  const n = avToDayNumber(av);
-  const base = new Date(ISO_EPOCH);
-  base.setDate(base.getDate() + n);
-  const y = base.getUTCFullYear();
-  const m = pad(base.getUTCMonth() + 1);
-  const d = pad(base.getUTCDate());
+export function avToISO(av){
+  if(!av || av.year==null) return new Date(ISO_EPOCH).toISOString().slice(0,10);
+  const n=avToDayNumber(av);
+  const base=new Date(ISO_EPOCH);
+  base.setDate(base.getDate()+n);
+  const y=base.getUTCFullYear();
+  const m=pad(base.getUTCMonth()+1);
+  const d=pad(base.getUTCDate());
   return `${y}-${m}-${d}`;
 }
-
-export function isoToAv(iso) {
-  const base = new Date(ISO_EPOCH);
-  const cur = new Date(iso);
-  const diffDays = Math.round((cur - base) / 86400000);
-  return dayNumberToAv(diffDays);
+export function isoToAv(iso){
+  const base=new Date(ISO_EPOCH);
+  const cur=new Date(iso);
+  const diff=Math.round((cur-base)/86400000);
+  return dayNumberToAv(diff);
 }
 
-// ------------------------------
-// Datums-Inputs (Aventurisch)
-// ------------------------------
-export function datePickerAv(idPrefix, value) {
-  const y = value?.year ?? 1027;
-  const m = value?.month ?? 1;
-  const d = value?.day ?? 1;
+// Inputs (Aventurisch)
+export function datePickerAv(idPrefix, value){
+  const y=value?.year ?? 1027;
+  const m=value?.month ?? 1;
+  const d=value?.day ?? 1;
   return `
-  <div class="row">
-    <div>
-      <div class="label">Tag</div>
-      <input class="input" id="${idPrefix}-day" type="number" min="1" max="30" value="${d}">
+    <div class="row">
+      <div>
+        <div class="label">Tag</div>
+        <input class="input" id="${idPrefix}-day" type="number" min="1" max="30" value="${d}">
+      </div>
+      <div>
+        <div class="label">Monat</div>
+        <select class="input" id="${idPrefix}-month">
+          ${AV_MONTHS.map((nm,idx)=>`<option value="${idx+1}" ${idx+1===Number(m)?'selected':''}>${nm}</option>`).join('')}
+        </select>
+      </div>
     </div>
     <div>
-      <div class="label">Monat</div>
-      <select class="input" id="${idPrefix}-month">
-        ${AV_MONTHS.map((nm, idx)=>`<option value="${idx+1}" ${idx+1===Number(m)?'selected':''}>${nm}</option>`).join('')}
-      </select>
-    </div>
-  </div>
-  <div>
-    <div class="label">Jahr (BF)</div>
-    <input class="input" id="${idPrefix}-year" type="number" value="${y}">
-  </div>`;
+      <div class="label">Jahr (BF)</div>
+      <input class="input" id="${idPrefix}-year" type="number" value="${y}">
+    </div>`;
 }
-
-export function readDatePickerAv(idPrefix) {
+export function readDatePickerAv(idPrefix){
   return {
     day: Number(document.getElementById(`${idPrefix}-day`).value),
     month: Number(document.getElementById(`${idPrefix}-month`).value),
@@ -91,27 +74,15 @@ export function readDatePickerAv(idPrefix) {
   };
 }
 
-// ------------------------------
-// String-Utils
-// ------------------------------
-const ESC_MAP = { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" };
-
-export function htmlEsc(s) {
-  return String(s ?? "").replace(/[&<>"']/g, ch => ESC_MAP[ch]);
-}
-
-// Alias für bestehenden Code:
+// Strings
+const ESC_MAP={"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"};
+export function htmlEsc(s){ return String(s ?? "").replace(/[&<>"']/g, ch=>ESC_MAP[ch]); }
 export const htmlesc = htmlEsc;
 
-export function byStr(field) {
-  return (a, b) =>
-    String(a?.[field] ?? "").localeCompare(String(b?.[field] ?? ""), "de", { sensitivity: "base" });
+export function byStr(field){
+  return (a,b)=>String(a?.[field]??"").localeCompare(String(b?.[field]??""),"de",{sensitivity:"base"});
 }
-
-export function byNum(field) {
-  return (a, b) => (Number(a?.[field] ?? 0) - Number(b?.[field] ?? 0));
+export function byNum(field){
+  return (a,b)=> (Number(a?.[field]??0) - Number(b?.[field]??0));
 }
-
-export function uid() {
-  return Math.random().toString(36).slice(2);
-}
+export function uid(){ return Math.random().toString(36).slice(2); }
