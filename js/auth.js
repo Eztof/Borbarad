@@ -1,5 +1,5 @@
 import { supabase } from './supabaseClient.js';
-import { state, setUser } from './state.js';
+import { state, setUser, subscribe } from './state.js';
 import { renderAuthBox, modal } from './components.js';
 
 
@@ -67,4 +67,14 @@ const root = modal(`
 </div>
 `);
 root.querySelector('#reg-cancel').onclick = ()=> root.innerHTML='';
+  root.querySelector('#reg-create').onclick = async ()=>{
+    const email = document.getElementById('reg-email').value.trim();
+    const pass = document.getElementById('reg-pass').value;
+    const { data, error } = await supabase.auth.signUp({ email, password: pass });
+    if (error){ alert(error.message); return; }
+    setUser(data.user);
+    root.innerHTML='';
+  };
+}
+
 subscribe(mountAuthBox);

@@ -82,4 +82,16 @@ tbody.innerHTML = filtered.map(row).join('');
 
 // Sortier-Header
 document.querySelectorAll('th[data-sf]').forEach(th=>{
+  th.addEventListener('click', ()=>{
+    const sf = th.getAttribute('data-sf');
+    if (sortField === sf){
+      sortDir *= -1;
+    } else {
+      sortField = sf;
+      sortDir = 1;
+    }
+    const sorted = sortItems(items.slice());
+    tbody.innerHTML = sorted.map(row).join('');
+  });
+});
 }
