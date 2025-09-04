@@ -1,4 +1,5 @@
 import { supabase, uploadImage } from './supabaseClient.js';
+import { state } from './state.js';
 import { section, modal, formRow, empty, avatar, dateBadge, avDateInputs } from './components.js';
 import { byStr, htmlesc, readDatePickerAv, formatAvDate } from './utils.js';
 
@@ -132,8 +133,8 @@ function showAddObject(){
     ${formRow('Bild', '<input class="input" id="o-image" type="file" accept="image/*" />')}
     ${formRow('Beschreibung', '<textarea class="input" id="o-desc" rows="5"></textarea>')}
     <div class="row">
-      ${avDateInputs('o-first')}
-      ${avDateInputs('o-last')}
+      ${avDateInputs('o-first', state.campaignDate)}
+      ${avDateInputs('o-last', state.campaignDate)}
     </div>
     ${formRow('Ort', '<input class="input" id="o-loc" />')}
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">

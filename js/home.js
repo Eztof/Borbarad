@@ -1,6 +1,6 @@
-import { state } from './state.js';
+import { state, setCampaignDate } from './state.js';
 import { section, empty } from './components.js';
-import { formatAvDate } from './utils.js';
+import { formatAvDate, datePickerAv, readDatePickerAv } from './utils.js';
 import { supabase } from './supabaseClient.js';
 
 function heroCard(h){
@@ -40,6 +40,12 @@ export async function renderHome(){
       ${section('Start')}
       <p class="small">Aktuelles Kampagnen-Datum</p>
       <h2 style="margin:6px 0">${formatAvDate(d)}</h2>
+      <div class="card" style="margin-top:10px">
+        ${datePickerAv('home-date', d)}
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
+          <button class="btn" id="save-date">Speichern</button>
+        </div>
+      </div>
     </div>
 
     <div class="card">
@@ -47,4 +53,10 @@ export async function renderHome(){
       ${heroes.length ? `<div class="hero-list">${heroes.map(heroCard).join('')}</div>` : empty('Noch keine Helden angelegt.')}
     </div>
   `;
+
+  document.getElementById('save-date').onclick = ()=>{
+    const av = readDatePickerAv('home-date');
+    setCampaignDate(av);
+    renderHome();
+  };
 }

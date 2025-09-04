@@ -4,6 +4,7 @@ import { renderNSCs } from './nscs.js';
 import { renderObjects } from './objects.js';
 import { renderCalendar } from './calendar.js';
 import { renderTimeline } from './timeline.js';
+import { renderDiary } from './diary.js';
 import { state } from './state.js';
 
 const routes = {
@@ -12,7 +13,8 @@ const routes = {
   '#/nscs': renderNSCs,
   '#/objects': renderObjects,
   '#/calendar': renderCalendar,
-  '#/timeline': renderTimeline
+  '#/timeline': renderTimeline,
+  '#/diary': renderDiary
 };
 
 function setActiveLink(){
@@ -39,12 +41,7 @@ function renderLocked(){
 function render(){
   const cur = location.hash || '#/home';
   setActiveLink();
-
-  // Route-Guard: ohne Login nur Lock-Screen
-  if (!state.user){
-    renderLocked();
-    return;
-  }
+  if (!state.user){ renderLocked(); return; }
   (routes[cur] || renderHome)();
 }
 

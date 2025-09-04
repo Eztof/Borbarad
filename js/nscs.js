@@ -1,4 +1,5 @@
 import { supabase, uploadImage } from './supabaseClient.js';
+import { state } from './state.js';
 import { section, modal, formRow, empty, avatar, dateBadge, avDateInputs } from './components.js';
 import { byStr, htmlesc, readDatePickerAv, formatAvDate } from './utils.js';
 
@@ -139,8 +140,8 @@ function showAddNSC(){
     ${formRow('Bild', '<input class="input" id="n-image" type="file" accept="image/*" />')}
     ${formRow('Biographie', '<textarea class="input" id="n-bio" rows="5"></textarea>')}
     <div class="row">
-      ${avDateInputs('n-first')}
-      ${avDateInputs('n-last')}
+      ${avDateInputs('n-first', state.campaignDate)}
+      ${avDateInputs('n-last', state.campaignDate)}
     </div>
     ${formRow('Verbleib', '<input class="input" id="n-where" />')}
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
