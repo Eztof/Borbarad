@@ -29,7 +29,6 @@ function renderLocked(){
   app.innerHTML = `
     <div class="card">
       <h2>Zugang erforderlich</h2>
-      <p class="small">Bitte zuerst anmelden.</p>
       <div style="display:flex;gap:8px;margin-top:10px">
         <button class="btn secondary" id="btn-login">Login</button>
         <button class="btn" id="btn-register">Registrieren</button>

@@ -21,7 +21,7 @@ function showLogin(){
     <div class="row">
       <div>
         <div class="label">Nutzername</div>
-        <input class="input" id="auth-username" placeholder="deinname" />
+        <input class="input" id="auth-username" />
       </div>
       <div>
         <div class="label">Passwort</div>
@@ -39,7 +39,6 @@ function showLogin(){
     const pass = document.getElementById('auth-pass').value;
     if (!username || !pass){ alert('Bitte Nutzername und Passwort eingeben.'); return; }
 
-    // E-Mail durch Lookup aus Profiles (öffentlich lesbar) ermitteln
     const { data: prof, error: perr } = await supabase
       .from('profiles')
       .select('email_stash')
@@ -62,7 +61,7 @@ function showRegister(){
     <div class="row">
       <div>
         <div class="label">Nutzername</div>
-        <input class="input" id="reg-username" placeholder="deinname" />
+        <input class="input" id="reg-username" />
       </div>
       <div>
         <div class="label">Passwort</div>
@@ -80,21 +79,18 @@ function showRegister(){
     const pass = document.getElementById('reg-pass').value;
     if (!username || !pass){ alert('Bitte Nutzername und Passwort eingeben.'); return; }
 
-    // künstliche E-Mail, nur für Supabase intern
     const email = `${username}@borbarad.local`;
 
-    // Existenz prüfen
     const { data: exists } = await supabase.from('profiles').select('username').eq('username', username).maybeSingle();
     if (exists){ alert('Nutzername ist bereits vergeben.'); return; }
 
     const { data, error } = await supabase.auth.signUp({
       email,
       password: pass,
-      options: { data: { username } } // in user_metadata speichern
+      options: { data: { username } }
     });
     if (error){ alert(error.message); return; }
 
-    // Profil anlegen (kann direkt klappen, weil Confirm-Mail aus ist)
     const userId = data.user?.id;
     if (userId){
       const { error: perr } = await supabase.from('profiles').insert({ user_id: userId, username, email_stash: email });
@@ -107,7 +103,5 @@ function showRegister(){
   };
 }
 
-// Session-Änderungen mitbekommen
 supabase.auth.onAuthStateChange((_ev, session)=>{ setUser(session?.user || null); });
-
 subscribe(mountAuthBox);

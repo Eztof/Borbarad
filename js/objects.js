@@ -15,12 +15,17 @@ async function listObjects(){
   return data;
 }
 
+function lastDisplay(o){
+  return o?.is_active ? state.campaignDate : o?.last_seen;
+}
+
 function row(o){
+  const last = lastDisplay(o);
   return `<tr data-id="${o.id}" class="obj-row">
     <td style="display:flex;align-items:center;gap:10px">${avatar(o.image_url, o.name)} <strong>${htmlesc(o.name)}</strong></td>
     <td class="small">${htmlesc(o.tags||'')}</td>
     <td>${o.first_seen ? dateBadge(o.first_seen) : '<span class="small">–</span>'}</td>
-    <td>${o.last_seen ? dateBadge(o.last_seen) : '<span class="small">–</span>'}</td>
+    <td>${last ? dateBadge(last) : '<span class="small">–</span>'}</td>
     <td class="small">${htmlesc(o.location||'')}</td>
   </tr>`;
 }
@@ -45,7 +50,7 @@ export async function renderObjects(){
               <th data-sf="name">Name</th>
               <th data-sf="tags">Tags</th>
               <th>Erstes Auftauchen</th>
-              <th>Letztes Auftauchen</th>
+              <th>Letzter Kontakt</th>
               <th>Ort</th>
             </tr>
           </thead>
@@ -86,7 +91,6 @@ export async function renderObjects(){
     if (o) showObject(o);
   });
 
-  // + Objekt
   const addBtn = document.getElementById('add-obj');
   if (addBtn) addBtn.onclick = ()=> showAddObject();
 }
@@ -109,8 +113,9 @@ function showObject(o){
           <div>${o.first_seen ? formatAvDate(o.first_seen) : '–'}</div>
         </div>
         <div class="card" style="margin-top:10px">
-          <div class="label">Letztes Auftauchen</div>
-          <div>${o.last_seen ? formatAvDate(o.last_seen) : '–'}</div>
+          <div class="label">Letzter Kontakt</div>
+          <div>${(lastDisplay(o)) ? formatAvDate(lastDisplay(o)) : '–'}</div>
+          ${o.is_active ? `<div class="small" style="margin-top:6px">Status: Aktiv – nutzt aktuelles Kampagnen-Datum</div>` : ''}
         </div>
         <div class="card" style="margin-top:10px">
           <div class="label">Ort</div>
@@ -132,9 +137,10 @@ function showAddObject(){
     ${formRow('Tags (Komma-getrennt)', '<input class="input" id="o-tags" />')}
     ${formRow('Bild', '<input class="input" id="o-image" type="file" accept="image/*" />')}
     ${formRow('Beschreibung', '<textarea class="input" id="o-desc" rows="5"></textarea>')}
-    <div class="row">
-      ${avDateInputs('o-first', state.campaignDate)}
-      ${avDateInputs('o-last', state.campaignDate)}
+    ${avDateInputs('o-first', state.campaignDate, 'Datum Erstkontakt')}
+    ${formRow('Status', '<label class="small"><input type="checkbox" id="o-active" checked /> Aktiv (im Besitz / in Nutzung)</label>')}
+    <div id="o-last-wrap" style="display:none">
+      ${avDateInputs('o-last', state.campaignDate, 'Datum letzter Kontakt')}
     </div>
     ${formRow('Ort', '<input class="input" id="o-loc" />')}
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
@@ -142,18 +148,24 @@ function showAddObject(){
       <button class="btn" id="o-save">Speichern</button>
     </div>
   `);
+  const activeCb = root.querySelector('#o-active');
+  const lastWrap = root.querySelector('#o-last-wrap');
+  activeCb.onchange = ()=>{ lastWrap.style.display = activeCb.checked ? 'none' : 'block'; };
+
   root.querySelector('#o-cancel').onclick = ()=> root.innerHTML='';
   root.querySelector('#o-save').onclick = async ()=>{
     try{
       const file = document.getElementById('o-image').files[0];
       const image_url = file ? await uploadImage(file, 'objects') : null;
+      const is_active = document.getElementById('o-active').checked;
       const payload = {
         name: document.getElementById('o-name').value.trim(),
         tags: document.getElementById('o-tags').value.trim(),
         image_url,
         description: document.getElementById('o-desc').value,
         first_seen: readDatePickerAv('o-first'),
-        last_seen: readDatePickerAv('o-last'),
+        last_seen: is_active ? state.campaignDate : readDatePickerAv('o-last'),
+        is_active,
         location: document.getElementById('o-loc').value.trim()
       };
       if (!payload.name){ alert('Name fehlt'); return; }

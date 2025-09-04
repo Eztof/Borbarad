@@ -30,4 +30,8 @@ export function dateBadge(av){ return `<span class="tag">${formatAvDate(av)}</sp
 export function section(title, actionsHtml=''){ return `<div class="toolbar"><h2 style="margin:6px 0">${title}</h2><div>${actionsHtml}</div></div>`; }
 export function empty(text){ return `<div class="empty">${text}</div>`; }
 export function formRow(label, inputHtml){ return `<div><div class="label">${label}</div>${inputHtml}</div>`; }
-export function avDateInputs(idPrefix, value){ return formRow('Datum (Aventurisch)', `<div class="card">${datePickerAv(idPrefix, value)}</div>`); }
+
+/** Datums-Inputs (Aventurisch) – jetzt mit frei wählbarem Label */
+export function avDateInputs(idPrefix, value, label='Datum (Aventurisch)'){
+  return formRow(label, `<div class="card">${datePickerAv(idPrefix, value)}</div>`);
+}

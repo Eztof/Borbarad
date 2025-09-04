@@ -15,12 +15,17 @@ async function listNSCs(){
   return data;
 }
 
+function lastDisplay(n){
+  return n?.is_active ? state.campaignDate : n?.last_encounter;
+}
+
 function row(n){
+  const last = lastDisplay(n);
   return `<tr data-id="${n.id}" class="nsc-row">
     <td style="display:flex;align-items:center;gap:10px">${avatar(n.image_url, n.name)} <strong>${htmlesc(n.name)}</strong></td>
     <td class="small">${htmlesc(n.tags||'')}</td>
     <td>${n.first_encounter ? dateBadge(n.first_encounter) : '<span class="small">–</span>'}</td>
-    <td>${n.last_encounter ? dateBadge(n.last_encounter) : '<span class="small">–</span>'}</td>
+    <td>${last ? dateBadge(last) : '<span class="small">–</span>'}</td>
     <td class="small">${htmlesc(n.whereabouts||'')}</td>
   </tr>`;
 }
@@ -117,7 +122,8 @@ function showNSC(n){
         </div>
         <div class="card" style="margin-top:10px">
           <div class="label">Letzte Begegnung</div>
-          <div>${n.last_encounter ? formatAvDate(n.last_encounter) : '–'}</div>
+          <div>${(lastDisplay(n)) ? formatAvDate(lastDisplay(n)) : '–'}</div>
+          ${n.is_active ? `<div class="small" style="margin-top:6px">Status: Aktiv – nutzt aktuelles Kampagnen-Datum</div>` : ''}
         </div>
         <div class="card" style="margin-top:10px">
           <div class="label">Verbleib</div>
@@ -139,9 +145,10 @@ function showAddNSC(){
     ${formRow('Tags (Komma-getrennt)', '<input class="input" id="n-tags" />')}
     ${formRow('Bild', '<input class="input" id="n-image" type="file" accept="image/*" />')}
     ${formRow('Biographie', '<textarea class="input" id="n-bio" rows="5"></textarea>')}
-    <div class="row">
-      ${avDateInputs('n-first', state.campaignDate)}
-      ${avDateInputs('n-last', state.campaignDate)}
+    ${avDateInputs('n-first', state.campaignDate, 'Datum Erstbegegnung')}
+    ${formRow('Status', '<label class="small"><input type="checkbox" id="n-active" checked /> Aktiv (ständig in Kontakt)</label>')}
+    <div id="n-last-wrap" style="display:none">
+      ${avDateInputs('n-last', state.campaignDate, 'Datum letzte Begegnung')}
     </div>
     ${formRow('Verbleib', '<input class="input" id="n-where" />')}
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
@@ -149,18 +156,24 @@ function showAddNSC(){
       <button class="btn" id="n-save">Speichern</button>
     </div>
   `);
+  const activeCb = root.querySelector('#n-active');
+  const lastWrap = root.querySelector('#n-last-wrap');
+  activeCb.onchange = ()=>{ lastWrap.style.display = activeCb.checked ? 'none' : 'block'; };
+
   root.querySelector('#n-cancel').onclick = ()=> root.innerHTML='';
   root.querySelector('#n-save').onclick = async ()=>{
     try{
       const file = document.getElementById('n-image').files[0];
       const image_url = file ? await uploadImage(file, 'nscs') : null;
+      const is_active = document.getElementById('n-active').checked;
       const payload = {
         name: document.getElementById('n-name').value.trim(),
         tags: document.getElementById('n-tags').value.trim(),
         image_url,
         biography: document.getElementById('n-bio').value,
         first_encounter: readDatePickerAv('n-first'),
-        last_encounter: readDatePickerAv('n-last'),
+        last_encounter: is_active ? state.campaignDate : readDatePickerAv('n-last'),
+        is_active,
         whereabouts: document.getElementById('n-where').value.trim()
       };
       if (!payload.name){ alert('Name fehlt'); return; }
