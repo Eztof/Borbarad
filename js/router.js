@@ -5,6 +5,7 @@ import { renderObjects } from './objects.js';
 import { renderCalendar } from './calendar.js';
 import { renderTimeline } from './timeline.js';
 import { renderTags } from './tags.js';
+import { renderDiary } from './diary.js';
 import { state } from './state.js';
 
 const routes = {
@@ -14,6 +15,7 @@ const routes = {
   '#/objects': renderObjects,
   '#/calendar': renderCalendar,
   '#/timeline': renderTimeline,
+  '#/diary': renderDiary,
   '#/tags': renderTags
 };
 
