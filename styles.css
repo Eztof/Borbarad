@@ -48,15 +48,11 @@ body{margin:0;background:var(--bg);color:var(--text);font:16px/1.4 system-ui,Seg
 .bar .mark{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px;color:#e8f0ff}
 
 /* ===========================
-   Aventurischer Kalender
+   Aventurischer Kalender (aus vorheriger Version)
    =========================== */
 .cal-nav{display:flex;align-items:center;gap:10px;margin-bottom:8px}
 .cal-title{font-weight:700}
-.cal-grid{
-  display:grid;
-  grid-template-columns:repeat(7,1fr);
-  gap:8px;
-}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}
 .cal-cell{min-height:100px;background:#0f1722;border:1px solid #223044;border-radius:10px;padding:8px;display:flex;flex-direction:column}
 .cal-cell.cal-empty{opacity:.4}
 .cal-day{font-weight:700;margin-bottom:6px;color:#b7c7da}
@@ -75,11 +71,7 @@ body{margin:0;background:var(--bg);color:var(--text);font:16px/1.4 system-ui,Seg
 
 .tl2-header{overflow:hidden;border-bottom:1px solid #1b2532}
 .tl-scale{display:flex;align-items:stretch}
-.tl-scale-cell{
-  border-right:1px dashed #213044;
-  padding:6px 4px;
-  min-width:60px;
-}
+.tl-scale-cell{border-right:1px dashed #213044;padding:6px 4px;min-width:60px}
 .tl-scale-cell:last-child{border-right:0}
 .tl-scale-month{font-size:12px;color:#8aa0b7;text-align:center}
 .tl-scale-year{font-size:11px;color:#6d829a;text-align:center}
@@ -87,47 +79,24 @@ body{margin:0;background:var(--bg);color:var(--text);font:16px/1.4 system-ui,Seg
 .tl2-scroll{overflow-x:auto;overflow-y:hidden;max-height:520px}
 .tl-canvas{position:relative}
 #tl-lanes{display:flex;flex-direction:column;gap:14px;padding:10px}
-
 .lane{display:grid;grid-template-columns:140px 1fr;gap:10px;align-items:flex-start}
 .lane-title{color:#8aa0b7;font-weight:600;padding-top:6px}
-.lane-track{
-  position:relative;
-  background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.02));
-  border:1px solid #203047;
-  border-radius:10px;
-}
+.lane-track{position:relative;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.02));border:1px solid #203047;border-radius:10px}
 
 /* Segmente (Linien) */
-.seg{
-  position:absolute;
-  height:12px;
-  border-radius:8px;
-  border:1px solid #2a3a50;
-  background:linear-gradient(90deg, rgba(79,195,247,.25), rgba(79,195,247,.15));
-  cursor:pointer;
-  display:flex; align-items:center;
-}
+.seg{position:absolute;height:12px;border-radius:8px;border:1px solid #2a3a50;background:linear-gradient(90deg, rgba(79,195,247,.25), rgba(79,195,247,.15));cursor:pointer;display:flex;align-items:center}
 .seg:hover{filter:brightness(1.08)}
-.seg-label{
-  font-size:11px;
-  padding:0 6px;
-  color:#dce7f5;
-  white-space:nowrap;
-  overflow:hidden;
-  text-overflow:ellipsis;
-  max-width:320px;
-}
+.seg-label{font-size:11px;padding:0 6px;color:#dce7f5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:320px}
+.seg-nsc{background:linear-gradient(90deg, rgba(106,160,255,.28), rgba(106,160,255,.16));border-color:rgba(106,160,255,.35)}
+.seg-obj{background:linear-gradient(90deg, rgba(255,209,102,.32), rgba(255,209,102,.18));border-color:rgba(255,209,102,.4)}
+.seg-story{background:linear-gradient(90deg, rgba(61,220,151,.30), rgba(61,220,151,.16));border-color:rgba(61,220,151,.38)}
 
-/* Farben pro Lane */
-.seg-nsc{
-  background:linear-gradient(90deg, rgba(106,160,255,.28), rgba(106,160,255,.16));
-  border-color:rgba(106,160,255,.35);
-}
-.seg-obj{
-  background:linear-gradient(90deg, rgba(255,209,102,.32), rgba(255,209,102,.18));
-  border-color:rgba(255,209,102,.4);
-}
-.seg-story{
-  background:linear-gradient(90deg, rgba(61,220,151,.30), rgba(61,220,151,.16));
-  border-color:rgba(61,220,151,.38);
-}
+/* ===========================
+   Tag-Autocomplete
+   =========================== */
+.suggest-wrap{position:relative}
+.suggest{position:absolute;z-index:20;top:100%;left:0;right:0;background:#0d131b;border:1px solid #223044;border-radius:10px;margin-top:4px;max-height:220px;overflow:auto;box-shadow:0 6px 24px rgba(0,0,0,.4)}
+.suggest-item{padding:8px 10px;border-bottom:1px solid #162030;cursor:pointer;color:#cfe0f5}
+.suggest-item:last-child{border-bottom:0}
+.suggest-item:hover{background:#102033}
+.badge{display:inline-block;background:#102033;border:1px solid #223044;border-radius:999px;padding:2px 8px;color:#cfe0f5;font-size:12px}
