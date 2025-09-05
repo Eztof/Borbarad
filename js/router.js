@@ -21,10 +21,17 @@ const routes = {
   '#/tags': renderTags
 };
 
+function baseHash(){
+  // Ignoriere Query-Teil hinter '?', damit z.B. "#/nscs?edit=..." korrekt auf "#/nscs" matched
+  const h = location.hash || '#/home';
+  return h.split('?')[0] || '#/home';
+}
+
 function setActiveLink(){
-  const cur = location.hash || '#/home';
+  const cur = baseHash();
   document.querySelectorAll('.menu a').forEach(a=>{
-    if (a.getAttribute('href')===cur) a.classList.add('active'); else a.classList.remove('active');
+    if (a.getAttribute('href')===cur) a.classList.add('active');
+    else a.classList.remove('active');
   });
 }
 
@@ -42,11 +49,21 @@ function renderLocked(){
 }
 
 function render(){
-  const cur = location.hash || '#/home';
+  const curBase = baseHash();
   setActiveLink();
-  if (!state.user){ renderLocked(); return; }
-  (routes[cur] || renderHome)();
+
+  // Route-Guard: ohne Login Lock-Screen
+  if (!state.user){
+    renderLocked();
+    return;
+  }
+
+  const handler = routes[curBase] || renderHome;
+  handler();
 }
 
 window.addEventListener('hashchange', render);
-window.addEventListener('load', ()=>{ if (!location.hash) location.hash = '#/home'; render(); });
+window.addEventListener('load', ()=>{
+  if (!location.hash) location.hash = '#/home';
+  render();
+});
