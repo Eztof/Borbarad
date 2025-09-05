@@ -18,7 +18,8 @@ async function loadAllTags(){
 async function upsertTagsToGlobal(tagsArr){
   if (!tagsArr?.length) return;
   const rows = tagsArr.map(name => ({ name }));
-  await supabase.from('tags').upsert(rows, { onConflict: 'name' });
+  const { error } = await supabase.from('tags').upsert(rows, { onConflict: 'name' });
+  if (error) console.warn('tags upsert error:', error);
   TAG_CACHE = null;
   await loadAllTags();
 }
@@ -238,14 +239,14 @@ function showDiaryEntry(entry){
     root.querySelector('#dlt').onclick = async ()=>{
       if (!confirm('Eintrag wirklich löschen?')) return;
       const { error } = await supabase.from('diary').delete().eq('id', entry.id);
-      if (error){ alert(error.message); return; }
+      if (error){ alert(error.message || error.details || 'Unbekannter Fehler'); return; }
       root.innerHTML='';
       location.hash = '#/diary';
     };
   }
 }
 
-/* ========= Neuer Eintrag – SCHÖNER DIALOG ========= */
+/* ========= Neuer Eintrag ========= */
 function showAddEditor(){
   const d = state.campaignDate;
   const root = modal(`
@@ -281,10 +282,7 @@ function showAddEditor(){
     </div>
   `);
 
-  // Tag-Autocomplete
   attachTagAutocomplete(root.querySelector('#di-tags'));
-
-  // RTE
   const { getHtml } = buildRTEHost(root);
 
   const doSave = async ()=>{
@@ -292,23 +290,36 @@ function showAddEditor(){
       const title = root.querySelector('#di-title').value.trim();
       if (!title){ alert('Titel fehlt'); return; }
       const av_date = readDatePickerAv('di-date');
+      // Validierung (verhindert NaN/0)
+      if (!av_date?.year || !av_date?.month || !av_date?.day){
+        alert('Bitte das aventurische Datum vollständig angeben.'); return;
+      }
       const signature = root.querySelector('#di-sign').value.trim();
       const tagsArr = parseTags(root.querySelector('#di-tags').value);
       const tags = joinTags(tagsArr);
       const body_html = getHtml().trim();
       const author_name = state.user?.user_metadata?.username || state.user?.email || 'Unbekannt';
 
-      const { error } = await supabase.from('diary').insert({
+      const payload = {
         title, body_html, av_date, signature,
         tags, user_id: state.user?.id || null, author_name,
         updated_at: new Date().toISOString()
-      });
-      if (error) throw error;
+      };
+
+      const { error } = await supabase.from('diary').insert(payload);
+      if (error){
+        console.error('Diary insert failed:', { error, payload });
+        alert([error.message, error.details, error.hint].filter(Boolean).join('\n') || 'Speichern fehlgeschlagen.');
+        return;
+      }
 
       await upsertTagsToGlobal(tagsArr);
       root.innerHTML='';
       location.hash = '#/diary';
-    }catch(err){ alert(err.message); }
+    }catch(err){
+      console.error('Diary insert exception:', err);
+      alert(err?.message || String(err));
+    }
   };
 
   root.querySelector('#di-save').onclick = doSave;
@@ -362,21 +373,33 @@ function showEditEditor(entry){
       const title = root.querySelector('#di-title').value.trim();
       if (!title){ alert('Titel fehlt'); return; }
       const av_date = readDatePickerAv('di-date');
+      if (!av_date?.year || !av_date?.month || !av_date?.day){
+        alert('Bitte das aventurische Datum vollständig angeben.'); return;
+      }
       const signature = root.querySelector('#di-sign').value.trim();
       const tagsArr = parseTags(root.querySelector('#di-tags').value);
       const tags = joinTags(tagsArr);
       const body_html = getHtml().trim();
 
-      const { error } = await supabase.from('diary').update({
+      const payload = {
         title, body_html, av_date, signature, tags,
         updated_at: new Date().toISOString()
-      }).eq('id', entry.id);
-      if (error) throw error;
+      };
+
+      const { error } = await supabase.from('diary').update(payload).eq('id', entry.id);
+      if (error){
+        console.error('Diary update failed:', { error, payload });
+        alert([error.message, error.details, error.hint].filter(Boolean).join('\n') || 'Speichern fehlgeschlagen.');
+        return;
+      }
 
       await upsertTagsToGlobal(tagsArr);
       root.innerHTML='';
       location.hash = '#/diary';
-    }catch(err){ alert(err.message); }
+    }catch(err){
+      console.error('Diary update exception:', err);
+      alert(err?.message || String(err));
+    }
   };
 
   root.querySelector('#di-save').onclick = doSave;
