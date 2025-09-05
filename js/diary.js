@@ -102,24 +102,24 @@ function buildRte(initialHtml=''){
     <button type="button" class="btn secondary" data-cmd="bold"><b>B</b></button>
     <button type="button" class="btn secondary" data-cmd="italic"><i>I</i></button>
     <button type="button" class="btn secondary" data-cmd="underline"><u>U</u></button>
-    <select id="rte-size">
-      <option value="">Schriftgröße</option>
+    <select id="rte-size" aria-label="Schriftgröße">
+      <option value="">Größe</option>
       <option value="2">Klein</option>
       <option value="3">Normal</option>
       <option value="4">Groß</option>
       <option value="5">Sehr groß</option>
       <option value="6">Riesig</option>
     </select>
-    <select id="rte-font">
+    <select id="rte-font" aria-label="Schriftart">
       <option value="">Schriftart</option>
       <option value="system-ui, Segoe UI, Roboto, Arial">System</option>
       <option value="Georgia, Times, serif">Serif</option>
       <option value="Arial, Helvetica, sans-serif">Sans</option>
       <option value="Courier New, Consolas, monospace">Monospace</option>
     </select>
-    <button type="button" class="btn secondary" id="rte-clear">Format entfernen</button>
-    <button type="button" class="btn secondary" id="rte-ul">• Liste</button>
-    <button type="button" class="btn secondary" id="rte-ol">1. Liste</button>
+    <button type="button" class="btn secondary" id="rte-clear" title="Format entfernen">Format entfernen</button>
+    <button type="button" class="btn secondary" id="rte-ul" title="Aufzählungsliste">• Liste</button>
+    <button type="button" class="btn secondary" id="rte-ol" title="Nummerierte Liste">1. Liste</button>
   `;
   const editor = document.createElement('div');
   editor.className = 'rte-editor';
@@ -138,9 +138,7 @@ function buildRte(initialHtml=''){
     const v = e.target.value;
     if (v) applyCmd('fontName', v);
   });
-  toolbar.querySelector('#rte-clear').addEventListener('click', ()=>{
-    applyCmd('removeFormat');
-  });
+  toolbar.querySelector('#rte-clear').addEventListener('click', ()=> applyCmd('removeFormat'));
   toolbar.querySelector('#rte-ul').addEventListener('click', ()=> applyCmd('insertUnorderedList'));
   toolbar.querySelector('#rte-ol').addEventListener('click', ()=> applyCmd('insertOrderedList'));
 
@@ -232,7 +230,6 @@ function showDiaryEntry(entry){
       </div>
     </div>
   `);
-  // HTML-Inhalt direkt setzen (Trusted User – interne Nutzung)
   root.querySelector('#rte-view').innerHTML = entry.body_html || '';
 
   root.querySelector('#cls').onclick = ()=> root.innerHTML='';
@@ -248,21 +245,39 @@ function showDiaryEntry(entry){
   }
 }
 
-/* ========= Neuer Eintrag ========= */
+/* ========= Neuer Eintrag – SCHÖNER DIALOG ========= */
 function showAddEditor(){
+  const d = state.campaignDate;
   const root = modal(`
-    <h3>Neuer Tagebuch-Eintrag</h3>
-    ${formRow('Titel', '<input class="input" id="di-title" />')}
-    ${avDateInputs('di-date', state.campaignDate, 'Datum (Aventurisch)')}
-    ${formRow('Tags (Komma-getrennt)', '<input class="input" id="di-tags" placeholder="z.B. reise, kampf, artefakt" />')}
-    ${formRow('Signatur (optional)', '<input class="input" id="di-sign" placeholder="z.B. Gez. Alrik" />')}
+    <div>
+      <div class="toolbar" style="margin-bottom:10px">
+        <h3 style="margin:0">✒️ Neuer Eintrag</h3>
+        <div style="display:flex;gap:8px">
+          <button class="btn secondary" id="di-cancel">Abbrechen</button>
+          <button class="btn" id="di-save">Speichern</button>
+        </div>
+      </div>
 
-    <div class="rte-toolbar" id="rte-toolbar"></div>
-    <div class="rte-editor" id="rte-editor" contenteditable="true"></div>
+      <div class="card" style="display:grid;gap:12px">
+        <div class="row">
+          ${formRow('Titel', '<input class="input" id="di-title" placeholder="Titel des Eintrags" />')}
+          ${avDateInputs('di-date', d, 'Datum (Aventurisch)')}
+        </div>
+        <div class="row">
+          ${formRow('Tags (Komma-getrennt)', '<input class="input" id="di-tags" placeholder="z.B. reise, kampf, artefakt" />')}
+          ${formRow('Signatur (optional)', '<input class="input" id="di-sign" placeholder="z.B. Gez. Alrik" />')}
+        </div>
+      </div>
 
-    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
-      <button class="btn secondary" id="di-cancel">Abbrechen</button>
-      <button class="btn" id="di-save">Speichern</button>
+      <div style="margin-top:10px">
+        <div class="rte-toolbar" id="rte-toolbar"></div>
+        <div class="rte-editor" id="rte-editor" contenteditable="true" placeholder="Schreibe deinen Eintrag…"></div>
+      </div>
+
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+        <button class="btn secondary" id="di-cancel-bottom">Abbrechen</button>
+        <button class="btn" id="di-save-bottom">Speichern</button>
+      </div>
     </div>
   `);
 
@@ -270,10 +285,9 @@ function showAddEditor(){
   attachTagAutocomplete(root.querySelector('#di-tags'));
 
   // RTE
-  const { toolbar, editor, getHtml } = buildRTEHost(root);
+  const { getHtml } = buildRTEHost(root);
 
-  root.querySelector('#di-cancel').onclick = ()=> root.innerHTML='';
-  root.querySelector('#di-save').onclick = async ()=>{
+  const doSave = async ()=>{
     try{
       const title = root.querySelector('#di-title').value.trim();
       if (!title){ alert('Titel fehlt'); return; }
@@ -282,7 +296,6 @@ function showAddEditor(){
       const tagsArr = parseTags(root.querySelector('#di-tags').value);
       const tags = joinTags(tagsArr);
       const body_html = getHtml().trim();
-
       const author_name = state.user?.user_metadata?.username || state.user?.email || 'Unbekannt';
 
       const { error } = await supabase.from('diary').insert({
@@ -293,38 +306,58 @@ function showAddEditor(){
       if (error) throw error;
 
       await upsertTagsToGlobal(tagsArr);
-
       root.innerHTML='';
       location.hash = '#/diary';
     }catch(err){ alert(err.message); }
   };
+
+  root.querySelector('#di-save').onclick = doSave;
+  root.querySelector('#di-save-bottom').onclick = doSave;
+  const close = ()=> root.innerHTML='';
+  root.querySelector('#di-cancel').onclick = close;
+  root.querySelector('#di-cancel-bottom').onclick = close;
 }
 
 /* ========= Eintrag bearbeiten ========= */
 function showEditEditor(entry){
   const root = modal(`
-    <h3>Tagebuch-Eintrag bearbeiten</h3>
-    ${formRow('Titel', `<input class="input" id="di-title" value="${htmlesc(entry.title)}" />`)}
-    ${avDateInputs('di-date', entry.av_date, 'Datum (Aventurisch)')}
-    ${formRow('Tags (Komma-getrennt)', `<input class="input" id="di-tags" value="${htmlesc(entry.tags||'')}" />`)}
-    ${formRow('Signatur (optional)', `<input class="input" id="di-sign" value="${htmlesc(entry.signature||'')}" />`)}
+    <div>
+      <div class="toolbar" style="margin-bottom:10px">
+        <h3 style="margin:0">✎ Eintrag bearbeiten</h3>
+        <div style="display:flex;gap:8px">
+          <button class="btn secondary" id="di-cancel">Abbrechen</button>
+          <button class="btn" id="di-save">Speichern</button>
+        </div>
+      </div>
 
-    <div class="rte-toolbar" id="rte-toolbar"></div>
-    <div class="rte-editor" id="rte-editor" contenteditable="true"></div>
+      <div class="card" style="display:grid;gap:12px">
+        <div class="row">
+          ${formRow('Titel', `<input class="input" id="di-title" value="${htmlesc(entry.title)}" />`)}
+          ${avDateInputs('di-date', entry.av_date, 'Datum (Aventurisch)')}
+        </div>
+        <div class="row">
+          ${formRow('Tags (Komma-getrennt)', `<input class="input" id="di-tags" value="${htmlesc(entry.tags||'')}" />`)}
+          ${formRow('Signatur (optional)', `<input class="input" id="di-sign" value="${htmlesc(entry.signature||'')}" />`)}
+        </div>
+      </div>
 
-    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
-      <button class="btn secondary" id="di-cancel">Abbrechen</button>
-      <button class="btn" id="di-save">Speichern</button>
+      <div style="margin-top:10px">
+        <div class="rte-toolbar" id="rte-toolbar"></div>
+        <div class="rte-editor" id="rte-editor" contenteditable="true"></div>
+      </div>
+
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+        <button class="btn secondary" id="di-cancel-bottom">Abbrechen</button>
+        <button class="btn" id="di-save-bottom">Speichern</button>
+      </div>
     </div>
   `);
 
   attachTagAutocomplete(root.querySelector('#di-tags'));
-
-  const { toolbar, editor, getHtml, setHtml } = buildRTEHost(root);
+  const { getHtml, setHtml } = buildRTEHost(root);
   setHtml(entry.body_html || '');
 
-  root.querySelector('#di-cancel').onclick = ()=> root.innerHTML='';
-  root.querySelector('#di-save').onclick = async ()=>{
+  const doSave = async ()=>{
     try{
       const title = root.querySelector('#di-title').value.trim();
       if (!title){ alert('Titel fehlt'); return; }
@@ -341,11 +374,16 @@ function showEditEditor(entry){
       if (error) throw error;
 
       await upsertTagsToGlobal(tagsArr);
-
       root.innerHTML='';
       location.hash = '#/diary';
     }catch(err){ alert(err.message); }
   };
+
+  root.querySelector('#di-save').onclick = doSave;
+  root.querySelector('#di-save-bottom').onclick = doSave;
+  const close = ()=> root.innerHTML='';
+  root.querySelector('#di-cancel').onclick = close;
+  root.querySelector('#di-cancel-bottom').onclick = close;
 }
 
 /* ========= Hilfsfunktion: RTE in Modal einbauen ========= */
