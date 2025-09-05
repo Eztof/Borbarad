@@ -7,7 +7,7 @@ import { renderTimeline } from './timeline.js';
 import { renderTags } from './tags.js';
 import { renderDiary } from './diary.js';
 import { renderOpen } from './open.js';
-import { state } from './state.js';
+import { state, subscribe } from './state.js';
 
 const routes = {
   '#/home': renderHome,
@@ -22,7 +22,7 @@ const routes = {
 };
 
 function baseHash(){
-  // Ignoriere Query-Teil hinter '?', damit z.B. "#/nscs?edit=..." korrekt auf "#/nscs" matched
+  // Alles hinter '?' ignorieren (z.B. "#/nscs?edit=..."):
   const h = location.hash || '#/home';
   return h.split('?')[0] || '#/home';
 }
@@ -52,18 +52,28 @@ function render(){
   const curBase = baseHash();
   setActiveLink();
 
-  // Route-Guard: ohne Login Lock-Screen
+  // Ohne Login: Lock-Screen anzeigen
   if (!state.user){
     renderLocked();
     return;
   }
 
+  // Mit Login: passende Route rendern
   const handler = routes[curBase] || renderHome;
   handler();
 }
 
+// Re-render bei Routenwechsel
 window.addEventListener('hashchange', render);
+
+// Initialer Render beim Laden
 window.addEventListener('load', ()=>{
   if (!location.hash) location.hash = '#/home';
+  render();
+});
+
+// *** WICHTIG: Re-render bei Login/Logout/Session-Änderung ***
+subscribe(() => {
+  // Sobald state.user gesetzt/geändert wird, sofort rendern
   render();
 });
