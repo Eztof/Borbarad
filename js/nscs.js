@@ -6,40 +6,34 @@ let sortField = 'name';
 let sortDir = 1; // 1 asc, -1 desc
 
 /* ============ Tag Helpers (global gespeicherte Tags) ============ */
-let TAG_CACHE = null; // Array<string> (lowercase)
+let TAG_CACHE = null; // Array<string>
 
 async function loadAllTags(){
   if (TAG_CACHE) return TAG_CACHE;
-  const { data, error } = await supabase.from('tags').select('name').order('name',{ascending:true});
-  if (error){ console.warn('tags load', error.message); TAG_CACHE = []; return TAG_CACHE; }
-  TAG_CACHE = (data||[]).map(x => String(x.name||'').trim()).filter(Boolean);
+  try{
+    const { data } = await supabase.from('tags').select('name').order('name',{ascending:true});
+    TAG_CACHE = (data||[]).map(x => String(x.name||'').trim()).filter(Boolean);
+  }catch(e){ TAG_CACHE = []; }
   return TAG_CACHE;
 }
 function normalizeTag(s){ return String(s||'').trim().replace(/\s+/g,' '); }
 function parseTags(raw){ return String(raw||'').split(',').map(normalizeTag).filter(Boolean); }
 
-/** bindet eine einfache Suggest-Liste an ein Komma-Tagfeld */
+/** Komma-Tagfeld mit Suggest aus globaler Tagliste */
 async function mountTagSuggest(inputEl){
   await loadAllTags();
-  const wrap = document.createElement('div');
-  wrap.className = 'suggest-wrap';
-  const sug  = document.createElement('div');
-  sug.className = 'suggest';
-  sug.style.display = 'none';
-  inputEl.parentElement.insertBefore(wrap, inputEl);
-  wrap.appendChild(inputEl);
-  wrap.appendChild(sug);
+  const wrap = document.createElement('div'); wrap.className='suggest-wrap';
+  const sug  = document.createElement('div'); sug.className='suggest'; sug.style.display='none';
+  inputEl.parentElement.insertBefore(wrap, inputEl); wrap.appendChild(inputEl); wrap.appendChild(sug);
 
-  function currentTerm(){
+  const currentTerm = ()=>{
     const val = inputEl.value || '';
     const parts = val.split(',');
     return normalizeTag(parts[parts.length-1] || '');
-  }
-  function existingSet(){
-    return new Set(parseTags(inputEl.value));
-  }
-  function close(){ sug.style.display='none'; sug.innerHTML=''; }
-  function openWith(list){
+  };
+  const existingSet = ()=> new Set(parseTags(inputEl.value));
+  const close = ()=>{ sug.style.display='none'; sug.innerHTML=''; };
+  const openWith = (list)=>{
     if (!list.length){ close(); return; }
     sug.innerHTML = list.slice(0,8).map(t=>`<div class="suggest-item" data-v="${htmlesc(t)}">${htmlesc(t)}</div>`).join('');
     sug.style.display = 'block';
@@ -50,11 +44,10 @@ async function mountTagSuggest(inputEl){
         parts[parts.length-1] = ` ${v}`;
         inputEl.value = parts.join(',').replace(/^ /,'').replace(/ ,/,', ');
         inputEl.dispatchEvent(new Event('input'));
-        close();
-        inputEl.focus();
+        close(); inputEl.focus();
       };
     });
-  }
+  };
 
   inputEl.addEventListener('input', ()=>{
     const q = currentTerm().toLowerCase();
@@ -67,7 +60,7 @@ async function mountTagSuggest(inputEl){
   document.addEventListener('click', (e)=>{ if (!wrap.contains(e.target)) close(); });
 }
 
-/* ============ DB / Listen ============ */
+/* ============ DB / Liste ============ */
 async function listNSCs(){
   const { data, error } = await supabase
     .from('nscs')
@@ -77,13 +70,13 @@ async function listNSCs(){
   return data;
 }
 
-/* ============ Rendering Tabelle ============ */
+/* ============ Tabelle ============ */
 function row(n){
   return `<tr data-id="${n.id}" class="nsc-row">
-    <td style="display:flex;align-items:center;gap:10px">${avatar(n.image_url, n.name)} <strong>${htmlesc(n.name)}</strong></td>
+    <td style="display:flex;align-items:center;gap:10px">${avatar(n.image_url, n.name, 36)} <strong>${htmlesc(n.name)}</strong></td>
     <td class="small">${htmlesc(n.tags||'')}</td>
     <td>${n.first_encounter ? dateBadge(n.first_encounter) : '<span class="small">–</span>'}</td>
-    <td>${(n.is_active ? null : n.last_encounter) ? dateBadge(n.last_encounter) : '<span class="small">–</span>'}</td>
+    <td>${n.last_encounter ? dateBadge(n.last_encounter) : '<span class="small">–</span>'}</td>
     <td class="small">${htmlesc(n.whereabouts||'')}</td>
   </tr>`;
 }
@@ -98,12 +91,11 @@ async function recordHistoryNSC(nsc_id, action, snapshot){
       data: snapshot
     });
   }catch(e){
-    // Falls Tabelle nicht existiert / keine Policy: stillschweigend ignorieren
     console.warn('nscs_history skip:', e.message);
   }
 }
 
-/* ============ Seiten-Renderer ============ */
+/* ============ Seite rendern ============ */
 export async function renderNSCs(){
   const app = document.getElementById('app');
   let items = await listNSCs();
@@ -123,7 +115,7 @@ export async function renderNSCs(){
             <tr>
               <th data-sf="name">Name</th>
               <th data-sf="tags">Tags</th>
-              <th>Erstbegegnung</th>
+              <th>Erste Begegnung</th>
               <th>Letzte Begegnung</th>
               <th>Verbleib</th>
             </tr>
@@ -179,7 +171,6 @@ export async function renderNSCs(){
   if (editId){
     const n = items.find(x=> x.id === editId);
     if (n) showEditNSC(n);
-    // Hash bereinigen (ohne Query)
     const base = hash.split('?')[0];
     history.replaceState(null, '', base);
   }
@@ -190,7 +181,7 @@ function showNSC(n){
   const root = modal(`
     <div class="grid">
       <div>
-        <div style="display:flex;gap:12px;align-items:center">${avatar(n.image_url, n.name)}
+        <div style="display:flex;gap:12px;align-items:center">${avatar(n.image_url, n.name, 56)}
           <div>
             <h3 style="margin:0">${htmlesc(n.name)}</h3>
             <div class="small">${htmlesc(n.tags||'')}</div>
@@ -205,7 +196,7 @@ function showNSC(n){
         </div>
         <div class="card" style="margin-top:10px">
           <div class="label">Letzte Begegnung</div>
-          <div>${(n.is_active ? null : n.last_encounter) ? formatAvDate(n.last_encounter) : '–'}</div>
+          <div>${n.last_encounter ? formatAvDate(n.last_encounter) : '–'}</div>
         </div>
         <div class="card" style="margin-top:10px">
           <div class="label">Verbleib</div>
@@ -233,8 +224,8 @@ function showAddNSC(){
     ${formRow('Bild', '<input class="input" id="n-image" type="file" accept="image/*" />')}
     ${formRow('Biographie', '<textarea class="input" id="n-bio" rows="5"></textarea>')}
     <div class="row">
-      ${avDateInputs('n-first', null, 'Datum Erstbegegnung')}
-      ${avDateInputs('n-last',  null, 'Datum letzte Begegnung')}
+      ${avDateInputs('n-first')}
+      ${avDateInputs('n-last')}
     </div>
     ${formRow('Verbleib', '<input class="input" id="n-where" />')}
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
@@ -243,7 +234,6 @@ function showAddNSC(){
     </div>
   `);
 
-  // Tag-Suggest
   mountTagSuggest(root.querySelector('#n-tags'));
 
   root.querySelector('#n-cancel').onclick = ()=> root.innerHTML='';
@@ -262,6 +252,7 @@ function showAddNSC(){
         is_active: false
       };
       if (!payload.name){ alert('Name fehlt'); return; }
+
       // Duplikat?
       const { data:dup } = await supabase.from('nscs').select('id').eq('name', payload.name).maybeSingle();
       if (dup){ alert('Name bereits vergeben.'); return; }
@@ -269,10 +260,9 @@ function showAddNSC(){
       const { data, error } = await supabase.from('nscs').insert(payload).select('id').single();
       if (error) throw error;
 
-      // Tags-Table updaten (neue Tags hinzufügen)
       await upsertNewTags(parseTags(payload.tags));
-
       await recordHistoryNSC(data.id, 'create', payload);
+
       root.innerHTML='';
       location.hash = '#/nscs';
     }catch(err){ alert(err.message); }
@@ -287,10 +277,10 @@ function showEditNSC(n){
     ${formRow('Tags (Komma-getrennt)', `<input class="input" id="e-tags" value="${htmlesc(n.tags||'')}" />`)}
     ${formRow('Bild (neu hochladen, optional)', '<input class="input" id="e-image" type="file" accept="image/*" />')}
     ${formRow('Biographie', `<textarea class="input" id="e-bio" rows="5">${htmlesc(n.biography||'')}</textarea>`)}
-    ${avDateInputs('e-first', n.first_encounter, 'Datum Erstbegegnung')}
+    ${avDateInputs('e-first', n.first_encounter)}
     ${formRow('Status', `<label class="small"><input type="checkbox" id="e-active" ${n.is_active?'checked':''}/> Aktiv (ständig in Kontakt)</label>`)}
     <div id="e-last-wrap" style="${n.is_active ? 'display:none' : ''}">
-      ${avDateInputs('e-last', n.last_encounter, 'Datum letzte Begegnung')}
+      ${avDateInputs('e-last', n.last_encounter)}
     </div>
     ${formRow('Verbleib', `<input class="input" id="e-where" value="${htmlesc(n.whereabouts||'')}" />`)}
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
@@ -299,7 +289,6 @@ function showEditNSC(n){
     </div>
   `);
 
-  // Tag-Suggest
   mountTagSuggest(root.querySelector('#e-tags'));
 
   // Aktiv-Toggle
@@ -313,7 +302,6 @@ function showEditNSC(n){
       const name = document.getElementById('e-name').value.trim();
       if (!name){ alert('Name fehlt'); return; }
 
-      // Duplikat?
       if (name !== n.name){
         const { data:dup } = await supabase.from('nscs').select('id').eq('name', name).maybeSingle();
         if (dup){ alert('Name bereits vergeben.'); return; }
@@ -345,7 +333,33 @@ function showEditNSC(n){
   };
 }
 
-/* ============ Verlauf anzeigen (best effort) ============ */
+/* ============ Verlauf anzeigen – hübsch, ohne JSON-Dump ============ */
+function renderNscHistorySnapshot(d){
+  if (!d || typeof d !== 'object') return '';
+
+  const keys = Object.keys(d);
+  if (keys.length === 1 && 'image_url' in d){
+    const url = d.image_url || '';
+    const thumb = url ? `<div style="margin-top:6px"><img src="${url}" alt="Bild" style="max-width:180px;max-height:120px;border-radius:8px;border:1px solid #4b2a33;object-fit:cover"/></div>` : '';
+    return `<div><strong>Bild aktualisiert</strong>${thumb}</div>`;
+  }
+
+  const parts = [];
+  if ('name' in d) parts.push(`<div><strong>Name:</strong> ${htmlesc(d.name||'')}</div>`);
+  if ('tags' in d) parts.push(`<div><strong>Tags:</strong> ${htmlesc(d.tags||'')}</div>`);
+  if ('is_active' in d) parts.push(`<div><strong>Status:</strong> ${d.is_active ? 'Aktiv' : 'Inaktiv'}</div>`);
+  if ('first_encounter' in d) parts.push(`<div><strong>Erstbegegnung:</strong> ${d.first_encounter ? formatAvDate(d.first_encounter) : '—'}</div>`);
+  if ('last_encounter' in d)  parts.push(`<div><strong>Letzte Begegnung:</strong> ${d.last_encounter ? formatAvDate(d.last_encounter) : '—'}</div>`);
+  if ('whereabouts' in d)     parts.push(`<div><strong>Verbleib:</strong> ${htmlesc(d.whereabouts||'')}</div>`);
+  if ('biography' in d)       parts.push(`<div class="small" style="white-space:pre-wrap;margin-top:6px">${htmlesc(d.biography||'')}</div>`);
+  if ('image_url' in d && keys.length > 1){
+    const url = d.image_url || '';
+    const thumb = url ? `<div style="margin-top:6px"><img src="${url}" alt="Bild" style="max-width:180px;max-height:120px;border-radius:8px;border:1px solid #4b2a33;object-fit:cover"/></div>` : '';
+    parts.push(`<div><strong>Bild aktualisiert</strong>${thumb}</div>`);
+  }
+  return parts.join('');
+}
+
 async function showHistoryNSC(nsc_id){
   try{
     const { data, error } = await supabase
@@ -357,15 +371,21 @@ async function showHistoryNSC(nsc_id){
 
     const items = (data||[]).map(rec=>{
       const when = new Date(rec.created_at).toLocaleString('de-DE');
-      const act  = rec.action || 'change';
-      const json = rec.data ? `<pre class="small" style="white-space:pre-wrap">${htmlesc(JSON.stringify(rec.data, null, 2))}</pre>` : '';
-      return `<div class="card"><div class="small">${when} – ${htmlesc(act)}</div>${json}</div>`;
+      const who  = rec.changed_by_name || 'Unbekannt';
+      const snap = renderNscHistorySnapshot(rec.data || {});
+      return `
+        <div class="card">
+          <div class="small" style="margin-bottom:6px">${when} – ${htmlesc(who)} (${htmlesc(rec.action||'update')})</div>
+          ${snap || '<div class="small">—</div>'}
+        </div>`;
     }).join('') || '<div class="empty">Noch kein Verlauf.</div>';
 
     const root = modal(`
       <h3 style="margin:0 0 8px 0">Verlauf (NSC)</h3>
       <div style="display:grid;gap:10px;max-height:60vh;overflow:auto">${items}</div>
-      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px"><button class="btn secondary" id="vh-close">Schließen</button></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+        <button class="btn secondary" id="vh-close">Schließen</button>
+      </div>
     `);
     root.querySelector('#vh-close').onclick = ()=> root.innerHTML='';
   }catch(err){
@@ -373,7 +393,7 @@ async function showHistoryNSC(nsc_id){
   }
 }
 
-/* ============ Tags-Table updaten (neue Tags einpflegen) ============ */
+/* ============ Tags-Table updaten ============ */
 async function upsertNewTags(tagsArr){
   if (!tagsArr?.length) return;
   await loadAllTags();
@@ -382,8 +402,6 @@ async function upsertNewTags(tagsArr){
   if (!toAdd.length) return;
   try{
     const { error } = await supabase.from('tags').insert(toAdd);
-    if (!error){
-      TAG_CACHE.push(...toAdd.map(x=>x.name));
-    }
+    if (!error){ TAG_CACHE.push(...toAdd.map(x=>x.name)); }
   }catch(e){ console.warn('tags upsert', e.message); }
 }
