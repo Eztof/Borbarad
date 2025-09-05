@@ -2,7 +2,7 @@
 // Bildschirmfreundlicher Aventurien-Zeitstrahl mit Auto-Fit, Zeitfenster, Zoom, Scroll & Filtern
 
 import { supabase } from './supabaseClient.js';
-import { section, modal } from './components.js';
+import { section, empty, modal } from './components.js';
 import {
   AV_MONTHS,
   avToDayNumber,
@@ -16,13 +16,15 @@ import { state } from './state.js';
    Persistente Einstellungen
    ========================= */
 const LS_KEY = 'timeline.settings.v3';
-function loadSettings() { try { return JSON.parse(localStorage.getItem(LS_KEY) || '{}'); } catch { return {}; } }
+function loadSettings() {
+  try { return JSON.parse(localStorage.getItem(LS_KEY) || '{}'); } catch { return {}; }
+}
 function saveSettings(s) { localStorage.setItem(LS_KEY, JSON.stringify(s)); }
 
 let SETTINGS = Object.assign({
-  pxPerDay: 12,                  // benutzt, wenn autoFit = false
-  autoFit: true,                 // << Standard: an Kartenbreite anpassen
-  window: '12m',                 // '3m' | '6m' | '12m' | 'all'
+  pxPerDay: 12,                      // nur relevant, wenn autoFit=false
+  autoFit: true,                     // << Standard: Timeline passt sich Kartenbreite an
+  window: '12m',                     // '3m' | '6m' | '12m' | 'all'
   showGroups: { story:true, nsc:true, object:true },
   compactLabels: true
 }, loadSettings() || {});
@@ -32,7 +34,7 @@ let SETTINGS = Object.assign({
    ============== */
 const clamp = (v, a, b)=> Math.max(a, Math.min(b, v));
 const PX_MIN = 4, PX_MAX = 60;
-const ROW_H = 18, ROW_GAP = 6, TRACK_PAD = 8;
+const ROW_H = 18, ROW_GAP = 6, TRACK_PAD = 8;  // Segment-Layout
 
 /* ==============
    Daten laden
@@ -57,6 +59,7 @@ let CACHED_SEGMENTS = [];
 
 function buildSegments({ events, nscs, objects }){
   const cur = state.campaignDate || {year:1027, month:1, day:1};
+  const curDN = avToDayNumber(cur);
   const segs = [];
 
   // Story
@@ -66,7 +69,7 @@ function buildSegments({ events, nscs, objects }){
     const eEnd = e.av_date_end ? avToDayNumber(e.av_date_end) : s;
     segs.push({
       id: e.id, kind:'story', label: e.title,
-      start: Math.min(s, eEnd), end: Math.max(s, eEnd) + 1,
+      start: Math.min(s, eEnd), end: Math.max(s, eEnd) + 1, // +1 = minimale sichtbare Länge
       meta: e
     });
   }
@@ -108,10 +111,11 @@ function totalRange(segs){
   for (const s of segs){ if (s.start < min) min = s.start; if (s.end > max) max = s.end; }
   if (!isFinite(min)) {
     const dn = avToDayNumber(state.campaignDate || {year:1027,month:1,day:1});
-    return { start: dn - 45, end: dn + 45 };
+    return { start: dn - 45, end: dn + 45 }; // 3 Monate Fallback
   }
-  return { start: min - 15, end: max + 15 };
+  return { start: min - 15, end: max + 15 }; // 1/2 Monat Rand
 }
+
 function rangeFromWindow(mode){
   const cur = state.campaignDate || {year:1027,month:1,day:1};
   const c = avToDayNumber(cur);
@@ -125,12 +129,13 @@ function rangeFromWindow(mode){
    ======================= */
 function packByRows(items){
   const list = [...items].sort((a,b)=> a.start - b.start || a.end - b.end);
-  const rows = [];
+  const rows = [];       // rows[i] = lastEnd
   const placed = [];
+
   for (const it of list){
     let rowIdx = rows.findIndex(lastEnd => lastEnd <= it.start);
     if (rowIdx === -1){ rowIdx = rows.length; rows.push(-Infinity); }
-    rows[rowIdx] = it.end + 0.25;
+    rows[rowIdx] = it.end + 0.25; // kleine Lücke
     placed.push({ ...it, row: rowIdx });
   }
   return { items: placed, rowCount: rows.length || 1 };
@@ -147,9 +152,8 @@ function titleFor(seg){
   return `${seg.label}\n${s} – ${e}`;
 }
 
-/* <<< EINMALIGE globale Statusvariablen (vorher doppelt, jetzt nur hier) */
-let RANGE = null;            // aktueller Anzeigebereich (DayNumbers)
-let PPD   = SETTINGS.pxPerDay;  // Pixel pro Tag (bei Auto-Fit dynamisch)
+let RANGE = null;         // aktueller Anzeigebereich (DayNumbers)
+let PPD = SETTINGS.pxPerDay; // aktuelle Pixel/Tag (kann sich bei AutoFit ändern)
 
 /* =======================
    Bedienleiste
@@ -216,7 +220,19 @@ function renderControls(host){
    Zeichnen
    ======================= */
 function computeDisplayRange(activeSegs){
-  return SETTINGS.window === 'all' ? totalRange(activeSegs) : rangeFromWindow(SETTINGS.window);
+  if (SETTINGS.window === 'all') return totalRange(activeSegs);
+  return rangeFromWindow(SETTINGS.window);
+}
+
+function renderScale(months){
+  const scale = document.getElementById('tl-scale');
+  scale.innerHTML = months.map(m => {
+    const w = 30 * PPD;
+    const label = `${AV_MONTHS[m.month-1]} ${m.year} BF`;
+    return `<div class="tl-scale-cell" style="min-width:${w}px;width:${w}px">
+      <div class="tl-scale-month">${htmlesc(label)}</div>
+    </div>`;
+  }).join('');
 }
 
 function buildMonths(range){
@@ -231,16 +247,6 @@ function buildMonths(range){
   return out;
 }
 
-function renderScale(months){
-  const scale = document.getElementById('tl-scale');
-  const cellW = 30 * PPD;
-  scale.innerHTML = months.map(m => `
-    <div class="tl-scale-cell" style="min-width:${cellW}px;width:${cellW}px">
-      <div class="tl-scale-month">${htmlesc(AV_MONTHS[m.month-1])} ${m.year} BF</div>
-    </div>
-  `).join('');
-}
-
 function packAndRenderLane(title, items){
   const track = document.createElement('div');
   track.className = 'lane';
@@ -250,13 +256,16 @@ function packAndRenderLane(title, items){
   `;
   const body = track.querySelector('.track-body');
 
-  // Clipping auf RANGE
-  const clipped = items.map(s => ({
-    ...s,
-    start: Math.max(s.start, RANGE.start),
-    end:   Math.min(s.end,   RANGE.end)
-  })).filter(s => s.end > s.start);
+  // Nur Items rendern, die im Range sichtbar sind (Clipping)
+  const clipped = items
+    .map(s => ({
+      ...s,
+      start: Math.max(s.start, RANGE.start),
+      end:   Math.min(s.end,   RANGE.end)
+    }))
+    .filter(s => s.end > s.start);
 
+  // Reihen packen
   const { items: placed, rowCount } = packByRows(clipped);
   track.querySelector('.lane-track').style.height =
     `${Math.max(ROW_H*rowCount + ROW_GAP*(rowCount-1) + TRACK_PAD*2, 40)}px`;
@@ -281,6 +290,7 @@ function packAndRenderLane(title, items){
     div.addEventListener('click', ()=> openDetails(it));
     body.appendChild(div);
   }
+
   return track;
 }
 
@@ -318,31 +328,32 @@ async function openDetails(seg){
 }
 
 function drawTimeline(reuseScroll=false){
+  // Aktive Gruppen filtern
   const active = CACHED_SEGMENTS.filter(s => SETTINGS.showGroups[s.kind]);
 
-  // Range
+  // Range bestimmen
   RANGE = computeDisplayRange(active);
 
-  // PPD (Auto-Fit füllt die Scroll-Fläche exakt)
+  // Pixel/Tag bestimmen
   const scrollWrap = document.getElementById('tl-scroll');
   if (SETTINGS.autoFit){
-    const innerW = Math.max(320, scrollWrap.clientWidth - 2 /*Rand*/);
+    const innerW = Math.max(320, scrollWrap.clientWidth - 16); // etwas Luft
     const totalDays = Math.max(1, RANGE.end - RANGE.start);
     PPD = clamp(innerW / totalDays, PX_MIN, PX_MAX);
   } else {
     PPD = clamp(SETTINGS.pxPerDay, PX_MIN, PX_MAX);
   }
 
-  // Skala und Breiten
+  // Skala & Breiten
   const months = buildMonths(RANGE);
   renderScale(months);
 
-  const canvasWidth = Math.ceil((RANGE.end - RANGE.start) * PPD);
+  const canvasWidth = Math.max(1, Math.ceil((RANGE.end - RANGE.start) * PPD));
   const scaleEl = document.getElementById('tl-scale');
   const lanesEl = document.getElementById('tl-lanes');
   const canvas  = document.getElementById('tl-canvas');
 
-  // Scroll-Position merken (damit bei Interaktionen nichts springt)
+  // Scroll-Position merken
   const prevScroll = reuseScroll ? scrollWrap.scrollLeft : 0;
 
   lanesEl.innerHTML = '';
@@ -358,18 +369,17 @@ function drawTimeline(reuseScroll=false){
   lanesEl.appendChild(packAndRenderLane('NSCs',    nscs));
   lanesEl.appendChild(packAndRenderLane('Objekte', objs));
 
-  // Heute-Marker
+  // Heute-Marker (Kampagnendatum)
   const cur = state.campaignDate || {year:1027,month:1,day:1};
   const curX = (avToDayNumber(cur) - RANGE.start) * PPD;
   const marker = document.getElementById('tl-today-marker');
   marker.style.left = `${clamp(curX, 0, canvasWidth)}px`;
 
-  // Header (Skala) mit Scroll synchronisieren + Overflow absichern
+  // Scroll-Sync Header
   const header = document.querySelector('.tl2-header');
-  header.style.overflow = 'hidden';
   header.scrollLeft = scrollWrap.scrollLeft;
 
-  // ggf. vorherige Scrollposition halten
+  // ggf. vorherige Scrollposition behalten
   if (reuseScroll) scrollWrap.scrollLeft = prevScroll;
 }
 
@@ -386,7 +396,7 @@ function scrollToDay(dayNumber){
 export async function renderTimeline(){
   const app = document.getElementById('app');
 
-  // Daten
+  // Daten holen & Segmente cachen
   const raw = await fetchAll();
   CACHED_SEGMENTS = buildSegments(raw);
 
@@ -410,6 +420,8 @@ export async function renderTimeline(){
   `;
 
   renderControls(document.getElementById('tl-controls'));
+
+  // Beim ersten Render direkt Auto-Fit auf das gewählte Zeitfenster
   drawTimeline();
 
   // Header mit Inhalt synchron scrollen
