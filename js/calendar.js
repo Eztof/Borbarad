@@ -5,7 +5,7 @@ import { AV_MONTHS, htmlesc } from './utils.js';
 
 /** ====== interner UI-State ====== */
 let view = null;              // { year, month } – aktuell angezeigter Monat
-let filters = { story:true, nsc:true, object:true };
+let filters = { story:true, nsc:true, object:true, diary:true }; // Tagebuch ergänzt
 
 /** ====== Helpers ====== */
 function initView(){
@@ -25,10 +25,11 @@ function isTodayCell(y,m,d){
 
 /** ====== Daten holen und in Tage gruppieren ====== */
 async function collectEvents(){
-  const [evRes, nscRes, objRes] = await Promise.all([
+  const [evRes, nscRes, objRes, diaryRes] = await Promise.all([
     supabase.from('events').select('id,title,av_date,av_date_end,type,description'),
     supabase.from('nscs').select('id,name,first_encounter,last_encounter,is_active'),
-    supabase.from('objects').select('id,name,first_seen,last_seen,is_active')
+    supabase.from('objects').select('id,name,first_seen,last_seen,is_active'),
+    supabase.from('diary').select('id,title,av_date')  // << Tagebuch
   ]);
 
   const events = [];
@@ -61,6 +62,13 @@ async function collectEvents(){
       events.push({ title:`Objekt: ${o.name} – letzter Kontakt`, type:'object', av_date:last });
   });
 
+  // Tagebuch (je Eintrag ein Ereignis am av_date)
+  (diaryRes.data||[]).forEach(d=>{
+    if (d.av_date){
+      events.push({ title:d.title || 'Tagebuch', type:'diary', av_date:d.av_date });
+    }
+  });
+
   return events;
 }
 
@@ -90,7 +98,7 @@ function showDayList(y,m,d, list){
     <div class="daylist">
       <h3>${d}. ${AV_MONTHS[m-1]} ${y} BF</h3>
       <div>
-        ${list.map(ev => `<div class="chip ${ev.type}">${htmlesc(ev.title)}</div>`).join('')}
+        ${list.map(ev => `<div class="chip ${ev.type}" title="${htmlesc(ev.title)}">${htmlesc(ev.title)}</div>`).join('')}
       </div>
       <div style="display:flex;justify-content:flex-end;margin-top:12px">
         <button class="btn secondary" id="dl-close">Schließen</button>
@@ -116,6 +124,7 @@ function renderToolbar(container, y, m){
           <label><input type="checkbox" id="flt-story" ${filters.story?'checked':''}/> Story</label>
           <label><input type="checkbox" id="flt-nsc" ${filters.nsc?'checked':''}/> NSCs</label>
           <label><input type="checkbox" id="flt-object" ${filters.object?'checked':''}/> Objekte</label>
+          <label><input type="checkbox" id="flt-diary" ${filters.diary?'checked':''}/> Tagebuch</label>
         </div>
         <button class="btn" id="go-today">Heute</button>
       </div>
@@ -137,6 +146,7 @@ function renderToolbar(container, y, m){
   container.querySelector('#flt-story').onchange  = (e)=>{ filters.story  = e.target.checked; renderCalendarAt(y,m); };
   container.querySelector('#flt-nsc').onchange    = (e)=>{ filters.nsc    = e.target.checked; renderCalendarAt(y,m); };
   container.querySelector('#flt-object').onchange = (e)=>{ filters.object = e.target.checked; renderCalendarAt(y,m); };
+  container.querySelector('#flt-diary').onchange  = (e)=>{ filters.diary  = e.target.checked; renderCalendarAt(y,m); };
 }
 
 function renderGrid(container, y, m, byDay){

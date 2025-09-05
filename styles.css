@@ -102,7 +102,7 @@ select.input{padding-right:28px}
 .tl-controls label{display:inline-flex;gap:6px;align-items:center;font-size:13px;color:var(--muted)}
 .tl-controls input[type=checkbox]{accent-color:var(--accent)}
 
-/* Kopf (Monats-Skala) – folgt dem Track via transform */
+/* Kopf (Monats-Skala) */
 .tl2-header{overflow:hidden;border-bottom:1px solid var(--line);position:relative}
 .tl2-header::after{content:"";position:absolute;right:0;top:0;bottom:0;width:40px;background:linear-gradient(90deg,transparent,#120d12)}
 .tl2-header::before{content:"";position:absolute;left:0;top:0;bottom:0;width:40px;background:linear-gradient(90deg,#120d12,transparent)}
@@ -175,6 +175,7 @@ select.input{padding-right:28px}
 .chip.story{border-color:#734bb4;background:rgba(115,75,180,.15)}
 .chip.nsc{border-color:#c22f2f;background:rgba(194,47,47,.14)}
 .chip.object{border-color:#e0a24a;background:rgba(224,162,74,.14)}
+.chip.diary{border-color:#46d990;background:rgba(70,217,144,.14)} /* Tagebuch */
 
 .cal-today{box-shadow:0 0 0 2px var(--accent2) inset}
 .cal-more{font-size:12px;color:var(--muted)}
