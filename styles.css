@@ -1,39 +1,29 @@
 :root{
   /* Borbaradianisches Dark-Red Theme – kontraststärker */
-  --bg:#070507;                 /* Grundfläche nahezu schwarz */
-  --panel:#151016;              /* Karten / Paneele dunkles Violett-Rot */
-  --panel-soft:#1a141b;         /* etwas heller für Flächen/Zeilenhover */
-  --muted:#d2c5cb;              /* “Muted” jetzt deutlich lesbar */
-  --text:#f8f3f6;               /* warmes Off-White */
-  --accent:#c22f2f;             /* Blutrot primär */
-  --accent2:#e0a24a;            /* warmes Gold für Akzente */
-  --good:#46d990;               /* Grün (LP-Balken) */
-  --bad:#e35674;                /* Rot (Warnung) */
+  --bg:#070507;
+  --panel:#151016;
+  --panel-soft:#1a141b;
+  --muted:#d2c5cb;
+  --text:#f8f3f6;
+  --accent:#c22f2f;
+  --accent2:#e0a24a;
+  --good:#46d990;
+  --bad:#e35674;
 
-  /* Linien/Umrandungen (deutlich stärker) */
-  --line:#6e3f49;               /* Default-Rand */
-  --line-strong:#9e5c6b;        /* stärkerer Rand */
-  --line-soft:#3a252b;          /* zarter Hairline */
+  --line:#6e3f49;
+  --line-strong:#9e5c6b;
+  --line-soft:#3a252b;
 
-  /* Schatten */
   --shadow:0 14px 40px rgba(0,0,0,.55);
 }
 
 /* ===== Global ===== */
 *{box-sizing:border-box}
-html,body{height:100%}
-/* WICHTIG: Browser-Horizontal-Scroll unterbinden.
-   Der Zeitstrahl bekommt seinen eigenen Scroller. */
-html,body{overflow-x:hidden}
-
-body{
-  margin:0;background:var(--bg);color:var(--text);
-  font:16px/1.45 system-ui,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial
-}
-
+html,body{height:100%;overflow-x:hidden}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.45 system-ui,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial}
 a{color:inherit}
 
-/* ===== Topbar / Navigation ===== */
+/* ===== Topbar ===== */
 .topbar{
   position:sticky;top:0;z-index:10;
   display:flex;gap:16px;align-items:center;justify-content:space-between;
@@ -45,29 +35,16 @@ a{color:inherit}
 .menu a:hover,.menu a.active{background:#120d12;color:var(--text);border-color:var(--line-soft)}
 .authbox{display:flex;gap:8px;align-items:center}
 
-/* ===== Buttons, Inputs, Cards ===== */
-.btn{
-  background:var(--accent);color:#fff;border:0;padding:8px 12px;
-  border-radius:10px;cursor:pointer;font-weight:700;
-  box-shadow:inset 0 -1px 0 rgba(0,0,0,.25)
-}
+/* ===== Controls / Cards ===== */
+.btn{background:var(--accent);color:#fff;border:0;padding:8px 12px;border-radius:10px;cursor:pointer;font-weight:700;box-shadow:inset 0 -1px 0 rgba(0,0,0,.25)}
 .btn.secondary{background:#261820;color:var(--text);border:1px solid var(--line)}
 .btn.warn{background:var(--bad);color:#fff}
 .btn:disabled{opacity:.6;cursor:not-allowed}
-
-.input,select,textarea{
-  width:100%;background:#120d12;color:var(--text);
-  border:1px solid var(--line);border-radius:10px;padding:8px 10px
-}
+.input,select,textarea{width:100%;background:#120d12;color:var(--text);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
 select.input{padding-right:28px}
 .label{font-size:12px;color:var(--muted);margin-bottom:4px}
 .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-
-.card{
-  background:var(--panel);border:1px solid var(--line);
-  border-radius:14px;padding:14px;box-shadow:var(--shadow)
-}
-
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;box-shadow:var(--shadow)}
 .app{max-width:1100px;margin:20px auto;padding:10px;display:grid;gap:14px}
 
 /* ===== Tabellen ===== */
@@ -78,10 +55,7 @@ select.input{padding-right:28px}
 
 /* ===== Hilfsklassen ===== */
 .toolbar{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap}
-.kbd{
-  font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
-  background:#100a10;border:1px solid var(--line);border-radius:8px;padding:2px 6px;color:var(--muted)
-}
+.kbd{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;background:#100a10;border:1px solid var(--line);border-radius:8px;padding:2px 6px;color:var(--muted)}
 .tags{display:flex;gap:6px;flex-wrap:wrap}
 .tag{background:#120d12;border:1px solid var(--line-soft);border-radius:999px;padding:2px 8px;color:var(--muted);font-size:12px}
 .grid{display:grid;grid-template-columns:2fr 1fr;gap:14px}
@@ -92,7 +66,7 @@ select.input{padding-right:28px}
 .modal{position:fixed;inset:0;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;padding:20px}
 .modal .panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px;max-width:860px;width:100%}
 
-/* ===== Kalender/vis Styles (beibehalten) ===== */
+/* ===== Kalender (beibehalten) ===== */
 .fc, .vis-timeline{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px}
 
 /* ===== Heldenliste + LP/AP-Balken ===== */
@@ -100,21 +74,14 @@ select.input{padding-right:28px}
 .hero-card{background:#120d12;border:1px solid var(--line);border-radius:12px;padding:10px}
 .hero-name{font-weight:700;margin:0 0 8px}
 .kv{display:flex;gap:8px;align-items:center;justify-content:space-between}
-.bar{
-  height:14px;background:#0b080b;border:1px solid var(--line);
-  border-radius:999px;overflow:hidden;position:relative
-}
+.bar{height:14px;background:#0b080b;border:1px solid var(--line);border-radius:999px;overflow:hidden;position:relative}
 .bar .fill{height:100%;background:linear-gradient(90deg,var(--good),#61e8b1);width:0%}
 .bar.warn .fill{background:linear-gradient(90deg,var(--bad),#ff8aa6)}
 .bar .mark{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px;color:#ffeef6}
 
-/* ===== Tag-Suggest (NSC/Objekt/Diary) ===== */
+/* ===== Tag-Suggest ===== */
 .suggest-wrap{position:relative}
-.suggest{
-  position:absolute;left:0;right:0;top:calc(100% + 4px);
-  background:#1a1218;border:1px solid var(--line);border-radius:10px;
-  z-index:6;max-height:220px;overflow:auto
-}
+.suggest{position:absolute;left:0;right:0;top:calc(100% + 4px);background:#1a1218;border:1px solid var(--line);border-radius:10px;z-index:6;max-height:220px;overflow:auto}
 .suggest-item{padding:6px 8px;cursor:pointer;border-bottom:1px solid var(--line-soft)}
 .suggest-item:last-child{border-bottom:0}
 .suggest-item:hover{background:#22171f}
@@ -127,67 +94,50 @@ select.input{padding-right:28px}
 .rte-view{min-height:80px}
 .rte-signature{margin-top:10px;opacity:.85;font-style:italic;text-align:right}
 
-/* ===== Timeline v2 (eigener Scroller) ===== */
-/* Hülle */
-.timeline2{
-  border:1px solid var(--line);border-radius:12px;background:#120d12;overflow:hidden
-}
-/* Steuerleiste */
+/* ===== Timeline – EIN Spur (ein einziger Track) ===== */
+.timeline2{border:1px solid var(--line);border-radius:12px;background:#120d12;overflow:hidden}
 .tl-controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-end;margin:10px 0}
 .tl-controls .group{display:flex;gap:8px;align-items:center;margin-right:auto}
 .tl-controls .sep{width:1px;height:26px;background:var(--line-soft)}
 .tl-controls label{display:inline-flex;gap:6px;align-items:center;font-size:13px;color:var(--muted)}
 .tl-controls input[type=checkbox]{accent-color:var(--accent)}
 
-/* Kopf (Monats-Skala) – soll NICHT die Seite verbreitern */
+/* Kopf (Monats-Skala) – kein eigener Scrollbalken, wird via transform verschoben */
 .tl2-header{overflow:hidden;border-bottom:1px solid var(--line)}
-.tl-scale{position:relative;display:flex;align-items:stretch}
-.tl-scale-cell{
-  border-right:1px dashed var(--line-soft);padding:6px 4px;min-width:60px;flex:0 0 auto
-}
+.tl-scale{position:relative;height:46px;display:flex;align-items:stretch;will-change:transform}
+.tl-scale-cell{border-right:1px dashed var(--line-soft);padding:6px 6px;min-width:60px;flex:0 0 auto;display:flex;align-items:end;justify-content:center}
 .tl-scale-cell:last-child{border-right:0}
 .tl-scale-month{font-size:12px;color:var(--muted);text-align:center}
 
 /* eigentlicher Scroller */
-.tl2-scroll{overflow-x:auto;overflow-y:hidden;max-height:520px}
+.tl2-scroll{overflow-x:auto;overflow-y:hidden}
 .tl2-scroll::-webkit-scrollbar{height:12px}
 .tl2-scroll::-webkit-scrollbar-thumb{background:var(--line-strong);border-radius:999px}
 
 /* Zeichenfläche */
 .tl-canvas{position:relative}
-#tl-lanes{display:flex;flex-direction:column;gap:14px;padding:10px;min-height:160px}
+.tl-track{position:relative;border:1px solid var(--line);border-radius:10px;margin:10px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.02))}
+.track-body{position:relative}
 
-/* Lanes */
-.lane{display:grid;grid-template-columns:140px 1fr;gap:10px;align-items:flex-start}
-.lane-title{color:var(--muted);font-weight:700;padding-top:6px}
-.lane-track{
-  position:relative;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.02));
-  border:1px solid var(--line);border-radius:10px
-}
-
-/* Segmente (Linienabschnitte) */
+/* Segmente */
 .seg{
-  position:absolute;height:14px;border-radius:8px;border:1px solid var(--line-strong);
-  background:linear-gradient(90deg, rgba(194,47,47,.35), rgba(194,47,47,.2));
+  position:absolute;height:16px;border-radius:8px;border:1px solid var(--line-strong);
+  background:linear-gradient(90deg, rgba(194,47,47,.35), rgba(194,47,47,.18));
   cursor:pointer;display:flex;align-items:center
 }
-.seg.story{background:linear-gradient(90deg, rgba(115,75,180,.35), rgba(115,75,180,.2))}
-.seg.nsc{background:linear-gradient(90deg, rgba(194,47,47,.35), rgba(194,47,47,.2))}
-.seg.object{background:linear-gradient(90deg, rgba(224,162,74,.35), rgba(224,162,74,.2))}
+.seg.story{background:linear-gradient(90deg, rgba(115,75,180,.35), rgba(115,75,180,.18))}
+.seg.nsc{background:linear-gradient(90deg, rgba(194,47,47,.35), rgba(194,47,47,.18))}
+.seg.object{background:linear-gradient(90deg, rgba(224,162,74,.35), rgba(224,162,74,.18))}
 .seg:hover{filter:brightness(1.08)}
 .seg-label{position:absolute;left:8px;top:-18px;font-size:11px;color:#fbe3ea;white-space:nowrap;pointer-events:none}
 .seg.compact .seg-label{top:-16px;font-size:10px}
 
-/* Heute-Marker im Canvas */
-.tl-today{position:absolute;top:0;bottom:0;width:2px;background:var(--accent2);opacity:.85}
+/* Heute-Marker */
+.tl-today{position:absolute;top:0;bottom:0;width:2px;background:var(--accent2);opacity:.9}
 
-/* ===== Kleinkram / Helfer ===== */
-.vis-timeline,.fc{box-shadow:0 1px 0 rgba(255,255,255,.03) inset}
-
-/* Mobile / schmal */
+/* Mobile */
 @media (max-width: 760px){
   .row{grid-template-columns:1fr}
   .grid{grid-template-columns:1fr}
-  .lane{grid-template-columns:100px 1fr}
   .tl-controls{justify-content:flex-start}
 }
