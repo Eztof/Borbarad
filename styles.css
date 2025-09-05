@@ -128,7 +128,7 @@ select.input{padding-right:28px}
   background:linear-gradient(90deg, rgba(194,47,47,.35), rgba(194,47,47,.18));
   box-shadow:0 1px 0 rgba(0,0,0,.4), inset 0 0 0 1px rgba(0,0,0,.25);
   cursor:pointer;display:flex;align-items:center;
-  overflow:visible; /* Labels sollen NICHT abgeschnitten werden */
+  overflow:visible;
 }
 .seg.story{background:linear-gradient(90deg, rgba(115,75,180,.35), rgba(115,75,180,.18))}
 .seg.object{background:linear-gradient(90deg, rgba(224,162,74,.35), rgba(224,162,74,.18))}
@@ -143,9 +143,50 @@ select.input{padding-right:28px}
 /* Heute-Marker */
 .tl-today{position:absolute;top:0;bottom:0;width:2px;background:var(--accent2);opacity:.95}
 
+/* ===== Aventurischer Monats-Kalender ===== */
+.cal-wrap{border:1px solid var(--line);border-radius:14px;background:#120d12;box-shadow:var(--shadow)}
+.cal-toolbar{display:flex;gap:8px;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap}
+.cal-left{display:flex;gap:8px;align-items:center}
+.cal-right{display:flex;gap:8px;align-items:center}
+.cal-title{font-weight:700}
+.cal-legend{display:flex;gap:10px;align-items:center}
+.cal-legend label{display:flex;gap:6px;align-items:center;font-size:13px;color:var(--muted)}
+.cal-legend input[type=checkbox]{accent-color:var(--accent)}
+
+.cal-grid{
+  display:grid;
+  grid-template-columns:repeat(6,1fr); /* 6 Spalten × 5 Reihen = 30 Tage */
+  gap:10px;
+}
+.cal-cell{
+  min-height:110px;background:#0f0a10;border:1px solid var(--line);border-radius:12px;
+  padding:8px;display:flex;flex-direction:column;gap:6px
+}
+.cal-cell:hover{outline:1px solid var(--line-strong)}
+.cal-day{font-size:12px;color:var(--muted)}
+.cal-evts{display:flex;flex-direction:column;gap:4px}
+.cal-empty{opacity:.4}
+
+.chip{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:4px 8px;border-radius:999px;font-size:12px;
+  border:1px solid var(--line-strong);background:#1b1218;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.chip.story{border-color:#734bb4;background:rgba(115,75,180,.15)}
+.chip.nsc{border-color:#c22f2f;background:rgba(194,47,47,.14)}
+.chip.object{border-color:#e0a24a;background:rgba(224,162,74,.14)}
+
+.cal-today{box-shadow:0 0 0 2px var(--accent2) inset}
+.cal-more{font-size:12px;color:var(--muted)}
+
+/* Modal Tagesliste */
+.daylist h3{margin:0 0 8px 0}
+.daylist .chip{margin:4px 0}
+
 /* Mobile */
 @media (max-width: 760px){
   .row{grid-template-columns:1fr}
   .grid{grid-template-columns:1fr}
   .tl-controls{justify-content:flex-start}
+  .cal-grid{grid-template-columns:repeat(3,1fr)}
 }
