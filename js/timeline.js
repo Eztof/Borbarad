@@ -147,8 +147,9 @@ function titleFor(seg){
   return `${seg.label}\n${s} – ${e}`;
 }
 
-let RANGE = null;     // aktueller Anzeigebereich
-let PPD   = SETTINGS.pxPerDay;
+/* <<< EINMALIGE globale Statusvariablen (vorher doppelt, jetzt nur hier) */
+let RANGE = null;            // aktueller Anzeigebereich (DayNumbers)
+let PPD   = SETTINGS.pxPerDay;  // Pixel pro Tag (bei Auto-Fit dynamisch)
 
 /* =======================
    Bedienleiste
@@ -214,9 +215,6 @@ function renderControls(host){
 /* =======================
    Zeichnen
    ======================= */
-let RANGE = null;
-let PPD = SETTINGS.pxPerDay;
-
 function computeDisplayRange(activeSegs){
   return SETTINGS.window === 'all' ? totalRange(activeSegs) : rangeFromWindow(SETTINGS.window);
 }
@@ -368,7 +366,7 @@ function drawTimeline(reuseScroll=false){
 
   // Header (Skala) mit Scroll synchronisieren + Overflow absichern
   const header = document.querySelector('.tl2-header');
-  header.style.overflow = 'hidden'; // <<< wichtig gegen Seitenscrollen
+  header.style.overflow = 'hidden';
   header.scrollLeft = scrollWrap.scrollLeft;
 
   // ggf. vorherige Scrollposition halten
