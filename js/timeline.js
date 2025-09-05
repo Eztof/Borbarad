@@ -1,325 +1,239 @@
 // js/timeline.js
-// Bildschirmfreundlicher Aventurien-Zeitstrahl mit Auto-Fit, Zeitfenster, Zoom, Scroll & Filtern
-
+// Eigener Zeitstrahl mit horizontalem In-Component-Scroll (kein Browser-Scroll).
 import { supabase } from './supabaseClient.js';
-import { section, empty, modal } from './components.js';
-import {
-  AV_MONTHS,
-  avToDayNumber,
-  dayNumberToAv,
-  formatAvDate,
-  htmlesc
-} from './utils.js';
 import { state } from './state.js';
+import { section, empty, modal } from './components.js';
+import { AV_MONTHS, htmlesc } from './utils.js';
 
-/* =========================
-   Persistente Einstellungen
-   ========================= */
-const LS_KEY = 'timeline.settings.v3';
-function loadSettings() {
-  try { return JSON.parse(localStorage.getItem(LS_KEY) || '{}'); } catch { return {}; }
+/* -------------------------------
+   Daten sammeln und Aufbereiten
+--------------------------------*/
+function normalizeAv(av){
+  if (!av || av.year==null || av.month==null || av.day==null) return null;
+  return { year:Number(av.year), month:Number(av.month), day:Number(av.day) };
 }
-function saveSettings(s) { localStorage.setItem(LS_KEY, JSON.stringify(s)); }
+function avToDay({year,month,day}){ return year*360 + (month-1)*30 + (day-1); }
+function maxDay(a,b){ return avToDay(a) > avToDay(b) ? a : b; }
 
-let SETTINGS = Object.assign({
-  pxPerDay: 12,                      // nur relevant, wenn autoFit=false
-  autoFit: true,                     // << Standard: Timeline passt sich Kartenbreite an
-  window: '12m',                     // '3m' | '6m' | '12m' | 'all'
-  showGroups: { story:true, nsc:true, object:true },
-  compactLabels: true
-}, loadSettings() || {});
-
-/* ==============
-   Konstanten
-   ============== */
-const clamp = (v, a, b)=> Math.max(a, Math.min(b, v));
-const PX_MIN = 4, PX_MAX = 60;
-const ROW_H = 18, ROW_GAP = 6, TRACK_PAD = 8;  // Segment-Layout
-
-/* ==============
-   Daten laden
-   ============== */
-async function fetchAll() {
+async function fetchSegments(){
   const [evRes, nscRes, objRes] = await Promise.all([
-    supabase.from('events').select('id,title,av_date,av_date_end,type,description,location'),
-    supabase.from('nscs').select('id,name,first_encounter,last_encounter,is_active,biography,whereabouts'),
-    supabase.from('objects').select('id,name,first_seen,last_seen,is_active,description,location')
+    supabase.from('events').select('id,title,type,description,av_date,av_date_end,location,related_nsc_id,related_object_id'),
+    supabase.from('nscs').select('id,name,biography,whereabouts,first_encounter,last_encounter,is_active'),
+    supabase.from('objects').select('id,name,description,location,first_seen,last_seen,is_active'),
   ]);
-  return {
-    events: evRes.data || [],
-    nscs: nscRes.data || [],
-    objects: objRes.data || []
-  };
-}
 
-/* ======================
-   Segmente bauen
-   ====================== */
-let CACHED_SEGMENTS = [];
+  const today = state.campaignDate || {year:1027,month:1,day:1};
 
-function buildSegments({ events, nscs, objects }){
-  const cur = state.campaignDate || {year:1027, month:1, day:1};
-  const curDN = avToDayNumber(cur);
   const segs = [];
 
-  // Story
-  for (const e of events){
-    if (!e.av_date) continue;
-    const s = avToDayNumber(e.av_date);
-    const eEnd = e.av_date_end ? avToDayNumber(e.av_date_end) : s;
+  // Story-Events
+  (evRes.data||[]).forEach(e=>{
+    const start = normalizeAv(e.av_date);
+    const end   = normalizeAv(e.av_date_end) || start;
+    if (!start) return;
     segs.push({
-      id: e.id, kind:'story', label: e.title,
-      start: Math.min(s, eEnd), end: Math.max(s, eEnd) + 1, // +1 = minimale sichtbare Länge
-      meta: e
+      id:e.id, kind:'story',
+      label:e.title || 'Ereignis',
+      start, end,
+      meta:{ title:e.title, type:e.type, description:e.description, location:e.location }
     });
-  }
+  });
 
   // NSCs
-  for (const n of nscs){
-    if (!n.first_encounter) continue;
-    const s = avToDayNumber(n.first_encounter);
-    const lastAv = n.is_active ? cur : n.last_encounter;
-    const eDN = lastAv ? avToDayNumber(lastAv) : s;
+  (nscRes.data||[]).forEach(n=>{
+    const fs = normalizeAv(n.first_encounter);
+    if (!fs) return;
+    const last = normalizeAv(n.last_encounter);
+    const end  = (n.is_active===false && last) ? last : (last || today);
     segs.push({
-      id: n.id, kind:'nsc', label: n.name,
-      start: Math.min(s, eDN), end: Math.max(s, eDN) + 1,
-      meta: n
+      id:n.id, kind:'nsc',
+      label:n.name || 'NSC',
+      start:fs, end,
+      meta:{ name:n.name, biography:n.biography, whereabouts:n.whereabouts }
     });
-  }
+  });
 
   // Objekte
-  for (const o of objects){
-    if (!o.first_seen) continue;
-    const s = avToDayNumber(o.first_seen);
-    const lastAv = o.is_active ? cur : o.last_seen;
-    const eDN = lastAv ? avToDayNumber(lastAv) : s;
+  (objRes.data||[]).forEach(o=>{
+    const fs = normalizeAv(o.first_seen);
+    if (!fs) return;
+    const last = normalizeAv(o.last_seen);
+    const end  = (o.is_active===false && last) ? last : (last || today);
     segs.push({
-      id: o.id, kind:'object', label: o.name,
-      start: Math.min(s, eDN), end: Math.max(s, eDN) + 1,
-      meta: o
+      id:o.id, kind:'object',
+      label:o.name || 'Objekt',
+      start:fs, end,
+      meta:{ name:o.name, description:o.description, location:o.location }
     });
-  }
+  });
 
   return segs;
 }
 
-/* =======================
-   Zeitbereich bestimmen
-   ======================= */
-function totalRange(segs){
-  let min = Infinity, max = -Infinity;
-  for (const s of segs){ if (s.start < min) min = s.start; if (s.end > max) max = s.end; }
-  if (!isFinite(min)) {
-    const dn = avToDayNumber(state.campaignDate || {year:1027,month:1,day:1});
-    return { start: dn - 45, end: dn + 45 }; // 3 Monate Fallback
-  }
-  return { start: min - 15, end: max + 15 }; // 1/2 Monat Rand
+/* -------------------------------
+   Layout / Rendering
+--------------------------------*/
+const SETTINGS = {
+  showGroups:{ story:true, nscs:true, objects:true },
+  windowMonths: 12,     // 3,6,12,24 oder 'all'
+  autoFit: true,
+  compactLabels: true,
+};
+
+let CACHED_SEGMENTS = [];
+let RANGE = { start: {year:1026,month:1,day:1}, end: {year:1028,month:1,day:1} };
+let PPD = 8;            // Pixel pro Aventurischem Tag (wird dynamisch gesetzt)
+const PX_MIN = 0.2;     // Min/Max Zoom-Schranken
+const PX_MAX = 20;
+
+function dayDiff(a,b){ return avToDay(b) - avToDay(a); }
+function addDays(av, plus){
+  const n = avToDay(av) + plus;
+  const year = Math.floor(n/360);
+  const m = Math.floor((n%360)/30)+1;
+  const d = (n%30)+1;
+  return {year,month:m,day:d};
 }
 
-function rangeFromWindow(mode){
-  const cur = state.campaignDate || {year:1027,month:1,day:1};
-  const c = avToDayNumber(cur);
-  const map = { '3m':90, '6m':180, '12m':360 };
-  const days = map[mode] || 180;
-  return { start: c - Math.floor(days/2), end: c + Math.ceil(days/2) };
-}
-
-/* =======================
-   Reihen-Pack-Layout
-   ======================= */
-function packByRows(items){
-  const list = [...items].sort((a,b)=> a.start - b.start || a.end - b.end);
-  const rows = [];       // rows[i] = lastEnd
-  const placed = [];
-
-  for (const it of list){
-    let rowIdx = rows.findIndex(lastEnd => lastEnd <= it.start);
-    if (rowIdx === -1){ rowIdx = rows.length; rows.push(-Infinity); }
-    rows[rowIdx] = it.end + 0.25; // kleine Lücke
-    placed.push({ ...it, row: rowIdx });
-  }
-  return { items: placed, rowCount: rows.length || 1 };
-}
-
-/* =======================
-   Rendering Helpers
-   ======================= */
-function segClass(kind){ return kind==='nsc' ? 'seg-nsc' : (kind==='object' ? 'seg-object' : 'seg-story'); }
-function titleFor(seg){
-  const s = formatAvDate(dayNumberToAv(seg.start));
-  const e = formatAvDate(dayNumberToAv(seg.end-1));
-  if (seg.kind==='story') return `${seg.label}\n${s}${seg.end>seg.start?` – ${e}`:''}`;
-  return `${seg.label}\n${s} – ${e}`;
-}
-
-let RANGE = null;         // aktueller Anzeigebereich (DayNumbers)
-let PPD = SETTINGS.pxPerDay; // aktuelle Pixel/Tag (kann sich bei AutoFit ändern)
-
-/* =======================
-   Bedienleiste
-   ======================= */
-function renderControls(host){
-  host.innerHTML = `
-    <div class="tl-controls">
-      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-        <div class="small">Gruppen:</div>
-        <label class="tag"><input type="checkbox" id="tl-f-story" ${SETTINGS.showGroups.story?'checked':''}/> Story</label>
-        <label class="tag"><input type="checkbox" id="tl-f-nsc" ${SETTINGS.showGroups.nsc?'checked':''}/> NSCs</label>
-        <label class="tag"><input type="checkbox" id="tl-f-obj" ${SETTINGS.showGroups.object?'checked':''}/> Objekte</label>
-
-        <span style="width:1px;height:20px;background:var(--line-soft);margin:0 4px"></span>
-
-        <div class="small">Zeitfenster:</div>
-        <select id="tl-window" class="input" style="width:140px;height:34px;padding:0 8px">
-          <option value="3m"  ${SETTINGS.window==='3m'?'selected':''}>3 Monate</option>
-          <option value="6m"  ${SETTINGS.window==='6m'?'selected':''}>6 Monate</option>
-          <option value="12m" ${SETTINGS.window==='12m'?'selected':''}>12 Monate</option>
-          <option value="all" ${SETTINGS.window==='all'?'selected':''}>Gesamt</option>
-        </select>
-
-        <label class="tag"><input type="checkbox" id="tl-autofit" ${SETTINGS.autoFit?'checked':''}/> Auto-Fit</label>
-
-        <span style="width:1px;height:20px;background:var(--line-soft);margin:0 4px"></span>
-
-        <div class="small">Zoom:</div>
-        <button class="btn secondary" id="tl-zoom-out" title="Zoom out">–</button>
-        <input id="tl-zoom-range" type="range" min="${PX_MIN}" max="${PX_MAX}" value="${SETTINGS.pxPerDay}" style="width:160px">
-        <button class="btn secondary" id="tl-zoom-in" title="Zoom in">+</button>
-
-        <button class="btn secondary" id="tl-fit" title="An Kartenbreite anpassen">Fit</button>
-        <button class="btn secondary" id="tl-today" title="Heute (Kampagnendatum)">Heute</button>
-
-        <span style="width:1px;height:20px;background:var(--line-soft);margin:0 4px"></span>
-        <label class="tag"><input type="checkbox" id="tl-compact" ${SETTINGS.compactLabels?'checked':''}/> kompakt</label>
-      </div>
-    </div>
-  `;
-
-  const apply = ()=>{ saveSettings(SETTINGS); drawTimeline(true); };
-  const zoomRange = host.querySelector('#tl-zoom-range');
-  const setZoomEnabled = (on)=>{ zoomRange.disabled = !on; host.querySelector('#tl-zoom-in').disabled = !on; host.querySelector('#tl-zoom-out').disabled = !on; };
-  setZoomEnabled(!SETTINGS.autoFit);
-
-  host.querySelector('#tl-f-story').onchange = (e)=>{ SETTINGS.showGroups.story = e.target.checked; apply(); };
-  host.querySelector('#tl-f-nsc').onchange   = (e)=>{ SETTINGS.showGroups.nsc   = e.target.checked; apply(); };
-  host.querySelector('#tl-f-obj').onchange   = (e)=>{ SETTINGS.showGroups.object= e.target.checked; apply(); };
-
-  host.querySelector('#tl-window').onchange  = (e)=>{ SETTINGS.window = e.target.value; apply(); };
-  host.querySelector('#tl-autofit').onchange = (e)=>{ SETTINGS.autoFit = e.target.checked; setZoomEnabled(!SETTINGS.autoFit); apply(); };
-  host.querySelector('#tl-compact').onchange = (e)=>{ SETTINGS.compactLabels = e.target.checked; apply(); };
-
-  host.querySelector('#tl-zoom-in').onclick  = ()=>{ SETTINGS.pxPerDay = clamp(SETTINGS.pxPerDay*1.2, PX_MIN, PX_MAX); zoomRange.value = SETTINGS.pxPerDay; apply(); };
-  host.querySelector('#tl-zoom-out').onclick = ()=>{ SETTINGS.pxPerDay = clamp(SETTINGS.pxPerDay/1.2, PX_MIN, PX_MAX); zoomRange.value = SETTINGS.pxPerDay; apply(); };
-  zoomRange.oninput = (e)=>{ SETTINGS.pxPerDay = clamp(+e.target.value, PX_MIN, PX_MAX); apply(); };
-
-  host.querySelector('#tl-fit').onclick   = ()=>{ SETTINGS.autoFit = true; setZoomEnabled(false); apply(); };
-  host.querySelector('#tl-today').onclick = ()=>{ scrollToDay(avToDayNumber(state.campaignDate||{year:1027,month:1,day:1})); };
-}
-
-/* =======================
-   Zeichnen
-   ======================= */
 function computeDisplayRange(activeSegs){
-  if (SETTINGS.window === 'all') return totalRange(activeSegs);
-  return rangeFromWindow(SETTINGS.window);
-}
-
-function renderScale(months){
-  const scale = document.getElementById('tl-scale');
-  scale.innerHTML = months.map(m => {
-    const w = 30 * PPD;
-    const label = `${AV_MONTHS[m.month-1]} ${m.year} BF`;
-    return `<div class="tl-scale-cell" style="min-width:${w}px;width:${w}px">
-      <div class="tl-scale-month">${htmlesc(label)}</div>
-    </div>`;
-  }).join('');
-}
-
-function buildMonths(range){
-  const first = Math.floor(range.start / 30);
-  const last  = Math.floor((range.end-1) / 30);
-  const out = [];
-  for (let m=first; m<=last; m++){
-    const y = Math.floor(m/12);
-    const mo = (m%12)+1;
-    out.push({ year:y, month:mo });
-  }
-  return out;
-}
-
-function packAndRenderLane(title, items){
-  const track = document.createElement('div');
-  track.className = 'lane';
-  track.innerHTML = `
-    <div class="lane-title">${htmlesc(title)}</div>
-    <div class="lane-track"><div class="track-body"></div></div>
-  `;
-  const body = track.querySelector('.track-body');
-
-  // Nur Items rendern, die im Range sichtbar sind (Clipping)
-  const clipped = items
-    .map(s => ({
-      ...s,
-      start: Math.max(s.start, RANGE.start),
-      end:   Math.min(s.end,   RANGE.end)
-    }))
-    .filter(s => s.end > s.start);
-
-  // Reihen packen
-  const { items: placed, rowCount } = packByRows(clipped);
-  track.querySelector('.lane-track').style.height =
-    `${Math.max(ROW_H*rowCount + ROW_GAP*(rowCount-1) + TRACK_PAD*2, 40)}px`;
-
-  for (const it of placed){
-    const left  = (it.start - RANGE.start) * PPD;
-    const width = Math.max(1, (it.end - it.start) * PPD);
-    const top   = TRACK_PAD + it.row*(ROW_H+ROW_GAP);
-
-    const div = document.createElement('div');
-    div.className = `seg ${segClass(it.kind)} ${SETTINGS.compactLabels?'compact':''}`;
-    div.style.left = `${left}px`;
-    div.style.width = `${width}px`;
-    div.style.top = `${top}px`;
-    div.title = titleFor(it);
-
-    const lab = document.createElement('div');
-    lab.className = 'seg-label';
-    lab.textContent = it.label;
-    div.appendChild(lab);
-
-    div.addEventListener('click', ()=> openDetails(it));
-    body.appendChild(div);
+  // Auto-Fit: kleinster bis größter Tag (mit etwas Puffer)
+  if (SETTINGS.autoFit || SETTINGS.windowMonths==='all'){
+    if (!activeSegs.length) return RANGE;
+    let start = activeSegs[0].start;
+    let end   = activeSegs[0].end || activeSegs[0].start;
+    for (const s of activeSegs){
+      if (avToDay(s.start) < avToDay(start)) start = s.start;
+      const e = s.end || s.start;
+      if (avToDay(e) > avToDay(end)) end = e;
+    }
+    // 1 Monat Puffer an beiden Enden
+    start = addDays(start, -30);
+    end   = addDays(end,   30);
+    return { start, end };
   }
 
-  return track;
+  // Fester Zeitraum: um "heute" herum
+  const m = Number(SETTINGS.windowMonths) || 12;
+  const mid = state.campaignDate || {year:1027,month:1,day:1};
+  const half = Math.round((m*30)/2);
+  return { start: addDays(mid,-half), end: addDays(mid,half) };
+}
+
+function pxPerDayFor(containerWidth, start, end){
+  const totalDays = Math.max(1, dayDiff(start,end));
+  return Math.min(PX_MAX, Math.max(PX_MIN, (containerWidth-16)/totalDays));
+}
+
+function drawScale(scaleEl){
+  const totalDays = Math.max(1, dayDiff(RANGE.start, RANGE.end));
+  const width = Math.ceil(totalDays * PPD);
+
+  // Breite hart setzen, damit NUR der interne Scroller horizontal wird
+  scaleEl.style.width = `${width}px`;
+  scaleEl.innerHTML = '';
+
+  // Monate zwischen Start und Ende erzeugen
+  let cur = { ...RANGE.start };
+  let lastYear = null;
+  while (avToDay(cur) < avToDay(RANGE.end)){
+    const monthStart = { ...cur };
+    const monthEnd   = addDays(monthStart, 30);
+    const left  = Math.floor(dayDiff(RANGE.start, monthStart) * PPD);
+    const w     = Math.ceil(dayDiff(monthStart, monthEnd) * PPD);
+
+    const cell = document.createElement('div');
+    cell.className = 'tl-scale-cell';
+    cell.style.left = `${left}px`;
+    cell.style.width = `${w}px`;
+    cell.style.position = 'relative';
+    cell.innerHTML = `
+      <div class="tl-scale-month">${AV_MONTHS[monthStart.month-1]} ${monthStart.year} BF</div>
+    `;
+    scaleEl.appendChild(cell);
+
+    cur = monthEnd;
+    lastYear = monthStart.year;
+  }
+}
+
+function segClass(kind){
+  if (kind==='nsc') return 'seg nsc';
+  if (kind==='object') return 'seg object';
+  return 'seg story';
+}
+function titleFor(s){
+  const a = `${s.start.day}. ${AV_MONTHS[s.start.month-1]} ${s.start.year} BF`;
+  const b = `${s.end.day}. ${AV_MONTHS[s.end.month-1]} ${s.end.year} BF`;
+  return `${s.label} (${a} – ${b})`;
+}
+
+function placeSegmentsInto(trackEl, items){
+  // Zeilen-Beladung (verhindert Überlappung)
+  const placed = [];
+  const rows = [];
+
+  function fits(row, seg){
+    for (const it of row){
+      const a1 = avToDay(seg.start), a2 = avToDay(seg.end);
+      const b1 = avToDay(it.start),  b2 = avToDay(it.end);
+      if (!(a2 < b1 || a1 > b2)) return false; // Kollision
+    }
+    return true;
+  }
+
+  for (const it of items){
+    let put = false;
+    for (const row of rows){ if (fits(row,it)){ row.push(it); put=true; break; } }
+    if (!put){ rows.push([it]); }
+    placed.push(it);
+  }
+
+  const ROW_H = 18, ROW_GAP = 6, PAD = 10;
+  const totalRows = rows.length || 1;
+  trackEl.style.height = `${Math.max(totalRows*ROW_H + (totalRows-1)*ROW_GAP + PAD*2, 40)}px`;
+
+  for (let r=0;r<rows.length;r++){
+    for (const it of rows[r]){
+      const left  = Math.max(0, Math.floor(dayDiff(RANGE.start, it.start) * PPD));
+      const width = Math.max(1, Math.ceil(dayDiff(it.start, it.end) * PPD));
+      const top   = PAD + r*(ROW_H+ROW_GAP);
+
+      const div = document.createElement('div');
+      div.className = `${segClass(it.kind)} ${SETTINGS.compactLabels?'compact':''}`;
+      div.style.left = `${left}px`;
+      div.style.width = `${width}px`;
+      div.style.top   = `${top}px`;
+      div.title = titleFor(it);
+
+      const lab = document.createElement('div');
+      lab.className = 'seg-label';
+      lab.textContent = it.label;
+      div.appendChild(lab);
+
+      div.addEventListener('click', ()=>openDetails(it));
+      trackEl.appendChild(div);
+    }
+  }
 }
 
 async function openDetails(seg){
-  const meta = seg.meta || {};
-  let title = '', body = '';
-  if (seg.kind === 'nsc'){
-    title = meta.name || 'NSC';
-    body = `
-      ${meta.whereabouts ? `<p><strong>Verbleib:</strong> ${htmlesc(meta.whereabouts)}</p>` : ''}
-      ${meta.biography ? `<p style="white-space:pre-wrap">${htmlesc(meta.biography)}</p>` : ''}
-    `;
-  }else if (seg.kind === 'object'){
-    title = meta.name || 'Objekt';
-    body = `
-      ${meta.location ? `<p><strong>Ort:</strong> ${htmlesc(meta.location)}</p>` : ''}
-      ${meta.description ? `<p style="white-space:pre-wrap">${htmlesc(meta.description)}</p>` : ''}
-    `;
+  const m = seg.meta || {};
+  let title = seg.label;
+  let html = '';
+  if (seg.kind==='nsc'){
+    html += m.whereabouts ? `<p><strong>Verbleib:</strong> ${htmlesc(m.whereabouts)}</p>` : '';
+    html += m.biography ? `<p style="white-space:pre-wrap">${htmlesc(m.biography)}</p>` : '';
+  }else if (seg.kind==='object'){
+    html += m.location ? `<p><strong>Ort:</strong> ${htmlesc(m.location)}</p>` : '';
+    html += m.description ? `<p style="white-space:pre-wrap">${htmlesc(m.description)}</p>` : '';
   }else{
-    title = meta.title || 'Ereignis';
-    body = `
-      ${meta.type ? `<div class="small">Typ: ${htmlesc(meta.type)}</div>` : ''}
-      ${meta.location ? `<p><strong>Ort:</strong> ${htmlesc(meta.location)}</p>` : ''}
-      ${meta.description ? `<p style="white-space:pre-wrap">${htmlesc(meta.description)}</p>` : ''}
-    `;
+    html += m.type ? `<div class="small">Typ: ${htmlesc(m.type)}</div>` : '';
+    html += m.location ? `<p><strong>Ort:</strong> ${htmlesc(m.location)}</p>` : '';
+    html += m.description ? `<p style="white-space:pre-wrap">${htmlesc(m.description)}</p>` : '';
   }
   const root = modal(`
     <h3 style="margin:0 0 8px 0">${htmlesc(title)}</h3>
-    ${body || '<div class="small">Keine weiteren Details.</div>'}
+    ${html || '<div class="small">Keine weiteren Details.</div>'}
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
       <button class="btn secondary" id="seg-close">Schließen</button>
     </div>
@@ -327,91 +241,187 @@ async function openDetails(seg){
   root.querySelector('#seg-close').onclick = ()=> root.innerHTML='';
 }
 
+/* -------------------------------
+   Zeichnen
+--------------------------------*/
 function drawTimeline(reuseScroll=false){
-  // Aktive Gruppen filtern
-  const active = CACHED_SEGMENTS.filter(s => SETTINGS.showGroups[s.kind]);
+  const active = CACHED_SEGMENTS.filter(s=>{
+    if (s.kind==='story')  return SETTINGS.showGroups.story;
+    if (s.kind==='nsc')    return SETTINGS.showGroups.nscs;
+    if (s.kind==='object') return SETTINGS.showGroups.objects;
+    return true;
+  });
 
-  // Range bestimmen
+  // Range + Zoom berechnen
   RANGE = computeDisplayRange(active);
 
-  // Pixel/Tag bestimmen
   const scrollWrap = document.getElementById('tl-scroll');
-  if (SETTINGS.autoFit){
-    const innerW = Math.max(320, scrollWrap.clientWidth - 16); // etwas Luft
-    const totalDays = Math.max(1, RANGE.end - RANGE.start);
-    PPD = clamp(innerW / totalDays, PX_MIN, PX_MAX);
-  } else {
-    PPD = clamp(SETTINGS.pxPerDay, PX_MIN, PX_MAX);
-  }
-
-  // Skala & Breiten
-  const months = buildMonths(RANGE);
-  renderScale(months);
-
-  const canvasWidth = Math.max(1, Math.ceil((RANGE.end - RANGE.start) * PPD));
-  const scaleEl = document.getElementById('tl-scale');
-  const lanesEl = document.getElementById('tl-lanes');
-  const canvas  = document.getElementById('tl-canvas');
-
-  // Scroll-Position merken
   const prevScroll = reuseScroll ? scrollWrap.scrollLeft : 0;
 
+  // PPD setzen (Auto-Fit nutzt Containerbreite)
+  if (SETTINGS.autoFit){
+    PPD = pxPerDayFor(scrollWrap.clientWidth, RANGE.start, RANGE.end);
+  }
+
+  // Breite Zwangsweise nur innerhalb des Scrollers
+  const scaleEl = document.getElementById('tl-scale');
+  const lanesEl = document.getElementById('tl-lanes');
+  drawScale(scaleEl);
+
+  // Canvas passend breit machen
+  const totalDays = Math.max(1, dayDiff(RANGE.start, RANGE.end));
+  const canvasW = Math.ceil(totalDays * PPD);
+  document.getElementById('tl-canvas').style.width = `${canvasW}px`;
+
+  // Lanes rendern
   lanesEl.innerHTML = '';
-  scaleEl.style.width = `${canvasWidth}px`;
-  canvas.style.width  = `${canvasWidth}px`;
+  const groups = [
+    { key:'story',   title:'Story',   items: active.filter(s=>s.kind==='story') },
+    { key:'nscs',    title:'NSCs',    items: active.filter(s=>s.kind==='nsc') },
+    { key:'objects', title:'Objekte', items: active.filter(s=>s.kind==='object') },
+  ];
 
-  // Lanes aufbauen
-  const story = active.filter(s=> s.kind==='story');
-  const nscs  = active.filter(s=> s.kind==='nsc');
-  const objs  = active.filter(s=> s.kind==='object');
+  for (const g of groups){
+    const lane = document.createElement('div');
+    lane.className = 'lane';
+    lane.innerHTML = `<div class="lane-title">${g.title}</div><div class="lane-track"></div>`;
+    lanesEl.appendChild(lane);
+    placeSegmentsInto(lane.querySelector('.lane-track'), g.items);
+  }
 
-  lanesEl.appendChild(packAndRenderLane('Story',   story));
-  lanesEl.appendChild(packAndRenderLane('NSCs',    nscs));
-  lanesEl.appendChild(packAndRenderLane('Objekte', objs));
+  // Heute-Markierung
+  const today = state.campaignDate || {year:1027,month:1,day:1};
+  const tLeft = Math.max(0, Math.floor(dayDiff(RANGE.start, today) * PPD));
+  let todayEl = document.getElementById('tl-today');
+  if (!todayEl){ todayEl = document.createElement('div'); todayEl.id='tl-today'; todayEl.className='tl-today'; document.getElementById('tl-canvas').appendChild(todayEl); }
+  todayEl.style.left = `${tLeft}px`;
 
-  // Heute-Marker (Kampagnendatum)
-  const cur = state.campaignDate || {year:1027,month:1,day:1};
-  const curX = (avToDayNumber(cur) - RANGE.start) * PPD;
-  const marker = document.getElementById('tl-today-marker');
-  marker.style.left = `${clamp(curX, 0, canvasWidth)}px`;
-
-  // Scroll-Sync Header
-  const header = document.querySelector('.tl2-header');
-  header.scrollLeft = scrollWrap.scrollLeft;
-
-  // ggf. vorherige Scrollposition behalten
+  // Scrollposition beibehalten (falls gewünscht)
   if (reuseScroll) scrollWrap.scrollLeft = prevScroll;
 }
 
-function scrollToDay(dayNumber){
+/* -------------------------------
+   Interaktionen / UI
+--------------------------------*/
+function mountControls(){
+  // Checkboxen
+  document.getElementById('chk-story').onchange  = e=>{ SETTINGS.showGroups.story   = e.target.checked; drawTimeline(true); };
+  document.getElementById('chk-nscs').onchange   = e=>{ SETTINGS.showGroups.nscs    = e.target.checked; drawTimeline(true); };
+  document.getElementById('chk-objects').onchange= e=>{ SETTINGS.showGroups.objects = e.target.checked; drawTimeline(true); };
+
+  // Zeitfenster
+  document.getElementById('sel-window').onchange = e=>{
+    const v = e.target.value;
+    SETTINGS.windowMonths = (v==='all') ? 'all' : Number(v);
+    SETTINGS.autoFit = (v==='auto');
+    document.getElementById('chk-autofit').checked = SETTINGS.autoFit;
+    drawTimeline(false);
+  };
+
+  // Auto-Fit
+  document.getElementById('chk-autofit').onchange = e=>{
+    SETTINGS.autoFit = e.target.checked;
+    drawTimeline(false);
+  };
+
+  // Fit & Heute
+  document.getElementById('btn-fit').onclick = ()=>{ SETTINGS.autoFit = true; document.getElementById('chk-autofit').checked = true; drawTimeline(false); };
+  document.getElementById('btn-today').onclick = ()=>{
+    SETTINGS.autoFit = false; document.getElementById('chk-autofit').checked = false;
+    SETTINGS.windowMonths = 12; document.getElementById('sel-window').value = '12';
+    drawTimeline(false);
+  };
+
+  // Zoom Slider
+  const slider = document.getElementById('zoom-range');
+  slider.oninput = ()=>{
+    SETTINGS.autoFit = false; document.getElementById('chk-autofit').checked = false;
+    PPD = Math.min(PX_MAX, Math.max(PX_MIN, Number(slider.value)));
+    drawTimeline(true);
+  };
+
+  // Scrolling Verhalten: In-Component horizontal (Mausrad & Drag)
   const wrap = document.getElementById('tl-scroll');
-  const totalW = (RANGE.end - RANGE.start)*PPD;
-  const targetX = (dayNumber - RANGE.start) * PPD - wrap.clientWidth/2;
-  wrap.scrollLeft = clamp(targetX, 0, Math.max(0, totalW - wrap.clientWidth));
+
+  // Wheel -> horizontal
+  wrap.addEventListener('wheel', (e)=>{
+    // mit Shift oder mit trackpad-typischem deltaY auch horizontal scrollen
+    if (!e.ctrlKey){
+      const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+      wrap.scrollLeft += delta;
+      e.preventDefault();
+    }
+  }, { passive:false });
+
+  // Drag to pan
+  let isDown=false, startX=0, startLeft=0;
+  wrap.addEventListener('mousedown', (e)=>{ isDown=true; startX=e.clientX; startLeft=wrap.scrollLeft; wrap.style.cursor='grabbing'; e.preventDefault(); });
+  window.addEventListener('mouseup', ()=>{ isDown=false; wrap.style.cursor='auto'; });
+  wrap.addEventListener('mousemove', (e)=>{ if(!isDown) return; const dx=e.clientX-startX; wrap.scrollLeft=startLeft-dx; });
+
+  // Resize -> neu zeichnen
+  window.addEventListener('resize', ()=> drawTimeline(true));
 }
 
-/* =======================
-   Public Render
-   ======================= */
+function controlsHtml(){
+  return `
+  <div class="tl-controls">
+    <div class="group">
+      <label><input type="checkbox" id="chk-story" checked> Story</label>
+      <label><input type="checkbox" id="chk-nscs" checked> NSCs</label>
+      <label><input type="checkbox" id="chk-objects" checked> Objekte</label>
+    </div>
+
+    <label>Zeitfenster:
+      <select class="input" id="sel-window" style="width:140px">
+        <option value="auto" selected>Auto-Fit</option>
+        <option value="3">3 Monate</option>
+        <option value="6">6 Monate</option>
+        <option value="12">12 Monate</option>
+        <option value="24">24 Monate</option>
+        <option value="all">Gesamt</option>
+      </select>
+    </label>
+
+    <label style="display:inline-flex;gap:6px;align-items:center">
+      <input type="checkbox" id="chk-autofit" checked> Auto-Fit
+    </label>
+
+    <div class="sep"></div>
+
+    <div style="display:inline-flex;gap:6px;align-items:center">
+      <span class="small">Zoom</span>
+      <input id="zoom-range" type="range" min="${PX_MIN}" max="${PX_MAX}" value="${PPD}" step="0.1" style="width:180px">
+    </div>
+
+    <button class="btn secondary" id="btn-fit">Fit</button>
+    <button class="btn secondary" id="btn-today">Heute</button>
+  </div>`;
+}
+
+/* -------------------------------
+   Public Renderer
+--------------------------------*/
 export async function renderTimeline(){
   const app = document.getElementById('app');
 
-  // Daten holen & Segmente cachen
-  const raw = await fetchAll();
-  CACHED_SEGMENTS = buildSegments(raw);
+  // Daten holen
+  CACHED_SEGMENTS = await fetchSegments();
+  if (!CACHED_SEGMENTS.length){
+    app.innerHTML = `<div class="card">${section('Kampagnen-Zeitstrahl (Zoom & Scroll)')}
+        ${empty('Noch keine Daten.')}
+      </div>`;
+    return;
+  }
 
   app.innerHTML = `
     <div class="card">
       ${section('Kampagnen-Zeitstrahl (Zoom & Scroll)')}
-      <div id="tl-controls"></div>
-
+      ${controlsHtml()}
       <div class="timeline2">
-        <div class="tl2-header">
-          <div id="tl-scale" class="tl-scale"></div>
-        </div>
-        <div id="tl-scroll" class="tl2-scroll">
+        <div class="tl2-header"><div id="tl-scale" class="tl-scale"></div></div>
+        <div class="tl2-scroll" id="tl-scroll">
           <div id="tl-canvas" class="tl-canvas">
-            <div id="tl-today-marker" style="position:absolute;top:0;bottom:0;width:2px;background:var(--accent2);opacity:.9"></div>
             <div id="tl-lanes"></div>
           </div>
         </div>
@@ -419,20 +429,6 @@ export async function renderTimeline(){
     </div>
   `;
 
-  renderControls(document.getElementById('tl-controls'));
-
-  // Beim ersten Render direkt Auto-Fit auf das gewählte Zeitfenster
-  drawTimeline();
-
-  // Header mit Inhalt synchron scrollen
-  const header = document.querySelector('.tl2-header');
-  const scroll = document.getElementById('tl-scroll');
-  header.scrollLeft = 0;
-  scroll.addEventListener('scroll', ()=>{ header.scrollLeft = scroll.scrollLeft; });
-
-  // Neu zeichnen bei Resize (Auto-Fit bleibt aktiv)
-  let t=null;
-  window.addEventListener('resize', ()=>{
-    clearTimeout(t); t=setTimeout(()=> drawTimeline(true), 120);
-  }, { passive:true });
+  mountControls();
+  drawTimeline(false);
 }
