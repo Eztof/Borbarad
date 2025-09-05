@@ -253,7 +253,7 @@ function showAddEditor(){
   const root = modal(`
     <h3>Neuer Tagebuch-Eintrag</h3>
     ${formRow('Titel', '<input class="input" id="di-title" />')}
-    ${avDateInputs('di-date', (window.state?.campaignDate || {year:1027,month:1,day:1}), 'Datum (Aventurisch)')}
+    ${avDateInputs('di-date', state.campaignDate, 'Datum (Aventurisch)')}
     ${formRow('Tags (Komma-getrennt)', '<input class="input" id="di-tags" placeholder="z.B. reise, kampf, artefakt" />')}
     ${formRow('Signatur (optional)', '<input class="input" id="di-sign" placeholder="z.B. Gez. Alrik" />')}
 
@@ -356,52 +356,4 @@ function buildRTEHost(root){
   toolbarHost.replaceWith(toolbar);
   editorHost.replaceWith(editor);
   return { toolbar, editor, getHtml, setHtml };
-}
-
-/* ========= Expose execCommand wrapper ========= */
-function buildRte(initialHtml=''){ // (duplikat, weil in diesem Modul genutzt)
-  const toolbar = document.createElement('div');
-  toolbar.className = 'rte-toolbar';
-  toolbar.innerHTML = `
-    <button type="button" class="btn secondary" data-cmd="bold"><b>B</b></button>
-    <button type="button" class="btn secondary" data-cmd="italic"><i>I</i></button>
-    <button type="button" class="btn secondary" data-cmd="underline"><u>U</u></button>
-    <select id="rte-size">
-      <option value="">Schriftgröße</option>
-      <option value="2">Klein</option>
-      <option value="3">Normal</option>
-      <option value="4">Groß</option>
-      <option value="5">Sehr groß</option>
-      <option value="6">Riesig</option>
-    </select>
-    <select id="rte-font">
-      <option value="">Schriftart</option>
-      <option value="system-ui, Segoe UI, Roboto, Arial">System</option>
-      <option value="Georgia, Times, serif">Serif</option>
-      <option value="Arial, Helvetica, sans-serif">Sans</option>
-      <option value="Courier New, Consolas, monospace">Monospace</option>
-    </select>
-    <button type="button" class="btn secondary" id="rte-clear">Format entfernen</button>
-    <button type="button" class="btn secondary" id="rte-ul">• Liste</button>
-    <button type="button" class="btn secondary" id="rte-ol">1. Liste</button>
-  `;
-  const editor = document.createElement('div');
-  editor.className = 'rte-editor';
-  editor.setAttribute('contenteditable','true');
-  editor.innerHTML = initialHtml || '';
-
-  toolbar.querySelectorAll('button[data-cmd]').forEach(btn=>{
-    btn.addEventListener('click', ()=> document.execCommand(btn.dataset.cmd,false,null));
-  });
-  toolbar.querySelector('#rte-size').addEventListener('change', (e)=>{
-    const v = e.target.value; if (v) document.execCommand('fontSize', false, v);
-  });
-  toolbar.querySelector('#rte-font').addEventListener('change', (e)=>{
-    const v = e.target.value; if (v) document.execCommand('fontName', false, v);
-  });
-  toolbar.querySelector('#rte-clear').addEventListener('click', ()=> document.execCommand('removeFormat', false, null));
-  toolbar.querySelector('#rte-ul').addEventListener('click', ()=> document.execCommand('insertUnorderedList', false, null));
-  toolbar.querySelector('#rte-ol').addEventListener('click', ()=> document.execCommand('insertOrderedList', false, null));
-
-  return { toolbar, editor, getHtml:()=>editor.innerHTML, setHtml:(h)=> editor.innerHTML=h };
 }
