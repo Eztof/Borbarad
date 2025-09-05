@@ -66,7 +66,7 @@ select.input{padding-right:28px}
 .modal{position:fixed;inset:0;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;padding:20px}
 .modal .panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px;max-width:860px;width:100%}
 
-/* ===== Kalender (beibehalten) ===== */
+/* ===== Externe Widgets – Grundlook beibehalten ===== */
 .fc, .vis-timeline{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px}
 
 /* ===== Heldenliste + LP/AP-Balken ===== */
@@ -113,7 +113,7 @@ select.input{padding-right:28px}
 .tl-scale-month .yr{font-size:11px;opacity:.8}
 
 /* eigentlicher Scroller */
-.tl2-scroll{overflow-x:auto;overflow-y:hidden}
+.tl2-scroll{overflow-x:auto;overflow-y:hidden;width:100%}
 .tl2-scroll::-webkit-scrollbar{height:12px}
 .tl2-scroll::-webkit-scrollbar-thumb{background:var(--line-strong);border-radius:999px}
 
@@ -127,13 +127,14 @@ select.input{padding-right:28px}
   position:absolute;height:18px;border-radius:10px;border:1px solid var(--line-strong);
   background:linear-gradient(90deg, rgba(194,47,47,.35), rgba(194,47,47,.18));
   box-shadow:0 1px 0 rgba(0,0,0,.4), inset 0 0 0 1px rgba(0,0,0,.25);
-  cursor:pointer;display:flex;align-items:center;overflow:hidden
+  cursor:pointer;display:flex;align-items:center;
+  overflow:visible; /* Labels sollen NICHT abgeschnitten werden */
 }
 .seg.story{background:linear-gradient(90deg, rgba(115,75,180,.35), rgba(115,75,180,.18))}
 .seg.object{background:linear-gradient(90deg, rgba(224,162,74,.35), rgba(224,162,74,.18))}
 .seg:hover{filter:brightness(1.08)}
 .seg-label{
-  position:absolute;left:8px;right:8px;top:-19px;height:18px;border-radius:8px;
+  position:absolute;left:8px;right:auto;top:-19px;height:18px;border-radius:8px;
   padding:0 8px;display:flex;align-items:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   font-size:11px;color:#fbe3ea;background:#1b1218;border:1px solid var(--line-soft)
 }

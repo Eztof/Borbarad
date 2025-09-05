@@ -4,8 +4,15 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Borbarad – DSA 4.1 Kampagnen-Tool</title>
+
+  <!-- App Styles -->
   <link rel="stylesheet" href="styles.css" />
+
+  <!-- vis-timeline CSS (gepinnt, prod) -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/vis-timeline@7.7.0/styles/vis-timeline-graph2d.min.css">
+
+  <!-- FullCalendar CSS (WICHTIG für „grafische“ Darstellung) -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/main.min.css">
 </head>
 <body>
   <header class="topbar">
@@ -26,10 +33,11 @@
   <main id="app" class="app"></main>
   <div id="modal-root"></div>
 
-  <!-- Vendor-CDNs -->
+  <!-- Vendor-CDNs (gepinnt, minifiziert – keine Dev-Warnungen) -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.3"></script>
   <script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.11/dayjs.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
+  <!-- NUR vis-timeline standalone-UMD -->
   <script src="https://cdn.jsdelivr.net/npm/vis-timeline@7.7.0/standalone/umd/vis-timeline-graph2d.min.js"></script>
 
   <!-- App-Code -->

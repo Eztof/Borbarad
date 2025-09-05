@@ -1,6 +1,7 @@
 // js/timeline.js
 // Einspuriger Zeitstrahl mit hübscher Optik, dynamischer Monats-Skala,
 // Row-Packing (kein Überlappen), eigenem horizontalem Scroll & Zoom.
+// Fixes: Scroll-Clamping beim Zoomen/Wechsel, Labels sichtbar, Skala immer synchron.
 
 import { supabase } from './supabaseClient.js';
 import { state } from './state.js';
@@ -21,12 +22,13 @@ const CFG = {
   window: 'auto', // 'auto'|'3m'|'6m'|'12m'|'24m'|'all'
   compactLabels: true
 };
-let PPD = 8;               // Pixel pro Tag (dynamisch durch Zoom/Autofit)
+let PPD = 8;               // Pixel pro Tag (dynamisch)
 const PX_MIN = 0.3, PX_MAX = 30;
 const ROW_H = 22, ROW_GAP = 8, PAD_TOP = 14;
 
 let SEGS = [];
 let RANGE = { start:{year:1027,month:1,day:1}, end:{year:1027,month:6,day:1} };
+let LAST_CANVAS_W = 0;
 
 /* -------- Daten sammeln -------- */
 async function getSegments(){
@@ -94,12 +96,12 @@ function monthsInRange(){
   return arr;
 }
 
-/* Dynamische Beschriftung: je nach monthWidth nur jeden n-ten Monat beschriften,
-   Jahreszahl nur bei Monat 1 (Praios) einblenden. */
 function renderScale(scaleEl, canvasWidth, scrollLeft=0){
   const months = monthsInRange();
   const monthW = 30*PPD;
-  scaleEl.style.width = `${months.length*monthW}px`;
+
+  // Skalenbreite = Canvasbreite → keine Drift
+  scaleEl.style.width = `${canvasWidth}px`;
 
   let step = 1;
   if (monthW < 90) step = 2;
@@ -111,7 +113,7 @@ function renderScale(scaleEl, canvasWidth, scrollLeft=0){
   for(let i=0;i<months.length;i++){
     const m = months[i];
     const show = (i%step===0);
-    const showYear = (m.month===1 && step<=6); // Jahr seltener anzeigen
+    const showYear = (m.month===1 && step<=6);
     const label = show ? AV_MONTHS[m.month-1] : '&nbsp;';
     html += `<div class="tl-scale-cell" style="width:${monthW}px">
       <div class="tl-scale-month">
@@ -124,10 +126,10 @@ function renderScale(scaleEl, canvasWidth, scrollLeft=0){
   scaleEl.style.transform = `translateX(${-scrollLeft}px)`;
 }
 
-/* -------- Pack-Layout: Items in Zeilen ohne Überlappung -------- */
+/* -------- Pack-Layout -------- */
 function packRows(items){
   const list = [...items].sort((a,b)=> dn(a.start)-dn(b.start) || dn(a.end)-dn(b.end));
-  const rows = []; // jede Zeile ist Array von Boxen {start,end}
+  const rows = [];
   const placed = [];
 
   const collides = (row, seg)=>{
@@ -177,6 +179,17 @@ function openDetails(seg){
 }
 
 /* -------- Zeichnen -------- */
+function clampScroll(wrap, canvasW, prevLeft, keepScroll){
+  const max = Math.max(0, canvasW - wrap.clientWidth);
+  if (keepScroll){
+    // Wenn die Breite geändert wurde, skaliere die Scrollposition proportional
+    const ratio = LAST_CANVAS_W ? (canvasW / LAST_CANVAS_W) : 1;
+    wrap.scrollLeft = Math.min(max, Math.max(0, Math.round(prevLeft * ratio)));
+  }else{
+    wrap.scrollLeft = Math.min(max, Math.max(0, wrap.scrollLeft));
+  }
+}
+
 function drawTimeline(keepScroll=false){
   const active = SEGS.filter(s=> CFG.show[s.kind]);
 
@@ -199,10 +212,14 @@ function drawTimeline(keepScroll=false){
   const canvasW = Math.ceil(totalDays*PPD);
   canvas.style.width = `${canvasW}px`;
 
+  // Scroll clamping/Scaling: verhindert „Flucht“ nach rechts
+  clampScroll(wrap, canvasW, prevLeft, keepScroll);
+  LAST_CANVAS_W = canvasW;
+
   // Skala
   renderScale(scale, canvasW, wrap.scrollLeft);
 
-  // Sichtbare Segmente auf den Range clampen
+  // Sichtbare Segmente clampen
   const vis = active.map(s=>({
     ...s,
     start: dn(s.start)<dn(RANGE.start)? RANGE.start : s.start,
@@ -243,7 +260,7 @@ function drawTimeline(keepScroll=false){
   if (!marker){ marker = document.createElement('div'); marker.id='tl-today'; marker.className='tl-today'; canvas.appendChild(marker); }
   marker.style.left = `${Math.max(0,(dn(today)-dn(RANGE.start))*PPD)}px`;
 
-  if (keepScroll) wrap.scrollLeft = prevLeft;
+  // final: Skala exakt nachziehen
   renderScale(scale, canvasW, wrap.scrollLeft);
 }
 
@@ -314,9 +331,8 @@ function mountInteractions(){
 
   // Zeitfenster
   document.getElementById('tw').onchange = e=>{
-    const v = e.target.value;
-    CFG.window = v;
-    CFG.autoFit = (v==='auto' || v==='all');
+    CFG.window = e.target.value;
+    CFG.autoFit = (CFG.window==='auto' || CFG.window==='all');
     document.getElementById('autofit').checked = CFG.autoFit;
     drawTimeline(false);
   };
@@ -339,7 +355,7 @@ function mountInteractions(){
     drawTimeline(false);
   };
 
-  // Resize
+  // Resize (debounced)
   let t=null; window.addEventListener('resize', ()=>{ clearTimeout(t); t=setTimeout(()=>drawTimeline(true),120); }, {passive:true});
 }
 
