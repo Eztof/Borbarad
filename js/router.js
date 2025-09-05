@@ -6,6 +6,7 @@ import { renderCalendar } from './calendar.js';
 import { renderTimeline } from './timeline.js';
 import { renderTags } from './tags.js';
 import { renderDiary } from './diary.js';
+import { renderOpen } from './open.js';
 import { state } from './state.js';
 
 const routes = {
@@ -16,6 +17,7 @@ const routes = {
   '#/calendar': renderCalendar,
   '#/timeline': renderTimeline,
   '#/diary': renderDiary,
+  '#/open': renderOpen,
   '#/tags': renderTags
 };
 

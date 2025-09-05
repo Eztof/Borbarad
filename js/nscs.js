@@ -1,61 +1,55 @@
 import { supabase, uploadImage } from './supabaseClient.js';
-import { state } from './state.js';
 import { section, modal, formRow, empty, avatar, dateBadge, avDateInputs } from './components.js';
 import { byStr, htmlesc, readDatePickerAv, formatAvDate } from './utils.js';
 
 let sortField = 'name';
 let sortDir = 1; // 1 asc, -1 desc
 
-/* ============ Tag Helpers (lokal) ============ */
+/* ============ Tag Helpers (global gespeicherte Tags) ============ */
 let TAG_CACHE = null; // Array<string> (lowercase)
 
 async function loadAllTags(){
   if (TAG_CACHE) return TAG_CACHE;
   const { data, error } = await supabase.from('tags').select('name').order('name',{ascending:true});
-  TAG_CACHE = (data||[]).map(r=>r.name);
+  if (error){ console.warn('tags load', error.message); TAG_CACHE = []; return TAG_CACHE; }
+  TAG_CACHE = (data||[]).map(x => String(x.name||'').trim()).filter(Boolean);
   return TAG_CACHE;
 }
-function normalizeTag(t){ return t.toLowerCase().trim().replace(/\s+/g,' '); }
-function parseTags(text){
-  const arr = String(text||'').split(',').map(s=>normalizeTag(s)).filter(Boolean);
-  // unique
-  return Array.from(new Set(arr));
-}
-function joinTags(arr){ return arr.join(', '); }
+function normalizeTag(s){ return String(s||'').trim().replace(/\s+/g,' '); }
+function parseTags(raw){ return String(raw||'').split(',').map(normalizeTag).filter(Boolean); }
 
-/** bindet Autocomplete-Dropdown an ein Input */
-async function attachTagAutocomplete(inputEl){
+/** bindet eine einfache Suggest-Liste an ein Komma-Tagfeld */
+async function mountTagSuggest(inputEl){
   await loadAllTags();
   const wrap = document.createElement('div');
   wrap.className = 'suggest-wrap';
-  inputEl.parentNode.insertBefore(wrap, inputEl);
-  wrap.appendChild(inputEl);
-  const sug = document.createElement('div');
+  const sug  = document.createElement('div');
   sug.className = 'suggest';
   sug.style.display = 'none';
+  inputEl.parentElement.insertBefore(wrap, inputEl);
+  wrap.appendChild(inputEl);
   wrap.appendChild(sug);
 
-  function currentToken(){
-    const val = inputEl.value;
+  function currentTerm(){
+    const val = inputEl.value || '';
     const parts = val.split(',');
-    const last = parts[parts.length-1] ?? '';
-    return normalizeTag(last);
+    return normalizeTag(parts[parts.length-1] || '');
   }
   function existingSet(){
     return new Set(parseTags(inputEl.value));
   }
   function close(){ sug.style.display='none'; sug.innerHTML=''; }
-
   function openWith(list){
     if (!list.length){ close(); return; }
     sug.innerHTML = list.slice(0,8).map(t=>`<div class="suggest-item" data-v="${htmlesc(t)}">${htmlesc(t)}</div>`).join('');
     sug.style.display = 'block';
-    sug.querySelectorAll('.suggest-item').forEach(it=>{
-      it.onclick = ()=>{
-        const cur = existingSet();
-        const v = it.getAttribute('data-v');
-        cur.add(v);
-        inputEl.value = joinTags(Array.from(cur)) + ', ';
+    sug.querySelectorAll('.suggest-item').forEach(div=>{
+      div.onclick = ()=>{
+        const v = div.getAttribute('data-v');
+        const parts = inputEl.value.split(',');
+        parts[parts.length-1] = ` ${v}`;
+        inputEl.value = parts.join(',').replace(/^ /,'').replace(/ ,/,', ');
+        inputEl.dispatchEvent(new Event('input'));
         close();
         inputEl.focus();
       };
@@ -63,37 +57,17 @@ async function attachTagAutocomplete(inputEl){
   }
 
   inputEl.addEventListener('input', ()=>{
-    const token = currentToken();
-    const exist = existingSet();
-    if (!token){ close(); return; }
-    const list = TAG_CACHE.filter(t => t.includes(token) && !exist.has(t));
-    openWith(list);
+    const q = currentTerm().toLowerCase();
+    const ex = existingSet();
+    if (!q){ close(); return; }
+    const res = TAG_CACHE.filter(t => t.toLowerCase().includes(q) && !ex.has(t));
+    openWith(res);
   });
-  inputEl.addEventListener('keydown', (e)=>{
-    if (e.key === 'Escape'){ close(); }
-    if (e.key === 'Enter'){ // Enter -> falls Vorschläge da: ersten übernehmen
-      if (sug.style.display === 'block'){
-        const first = sug.querySelector('.suggest-item');
-        if (first){
-          first.click();
-          e.preventDefault();
-        }
-      }
-    }
-  });
+  inputEl.addEventListener('keydown', (e)=>{ if (e.key==='Escape') close(); });
   document.addEventListener('click', (e)=>{ if (!wrap.contains(e.target)) close(); });
 }
 
-async function upsertTagsToGlobal(tagsArr){
-  if (!tagsArr?.length) return;
-  const rows = tagsArr.map(name => ({ name }));
-  await supabase.from('tags').upsert(rows, { onConflict: 'name' });
-  // Cache aktualisieren
-  TAG_CACHE = null;
-  await loadAllTags();
-}
-
-/* -------------------------------- */
+/* ============ DB / Listen ============ */
 async function listNSCs(){
   const { data, error } = await supabase
     .from('nscs')
@@ -102,20 +76,34 @@ async function listNSCs(){
   if (error){ console.error(error); return []; }
   return data;
 }
-function lastDisplay(n){ return n?.is_active ? state.campaignDate : n?.last_encounter; }
+
+/* ============ Rendering Tabelle ============ */
 function row(n){
-  const last = lastDisplay(n);
   return `<tr data-id="${n.id}" class="nsc-row">
     <td style="display:flex;align-items:center;gap:10px">${avatar(n.image_url, n.name)} <strong>${htmlesc(n.name)}</strong></td>
     <td class="small">${htmlesc(n.tags||'')}</td>
     <td>${n.first_encounter ? dateBadge(n.first_encounter) : '<span class="small">–</span>'}</td>
-    <td>${last ? dateBadge(last) : '<span class="small">–</span>'}</td>
+    <td>${(n.is_active ? null : n.last_encounter) ? dateBadge(n.last_encounter) : '<span class="small">–</span>'}</td>
     <td class="small">${htmlesc(n.whereabouts||'')}</td>
   </tr>`;
 }
 function sortItems(items){ return items.sort((a,b)=> sortDir * byStr(sortField)(a,b)); }
 
-/* -------------------------------- */
+/* ============ Verlauf aufnehmen (best effort) ============ */
+async function recordHistoryNSC(nsc_id, action, snapshot){
+  try{
+    await supabase.from('nscs_history').insert({
+      nsc_id,
+      action,
+      data: snapshot
+    });
+  }catch(e){
+    // Falls Tabelle nicht existiert / keine Policy: stillschweigend ignorieren
+    console.warn('nscs_history skip:', e.message);
+  }
+}
+
+/* ============ Seiten-Renderer ============ */
 export async function renderNSCs(){
   const app = document.getElementById('app');
   let items = await listNSCs();
@@ -135,8 +123,8 @@ export async function renderNSCs(){
             <tr>
               <th data-sf="name">Name</th>
               <th data-sf="tags">Tags</th>
-              <th>Erstes Treffen</th>
-              <th>Letztes Treffen</th>
+              <th>Erstbegegnung</th>
+              <th>Letzte Begegnung</th>
               <th>Verbleib</th>
             </tr>
           </thead>
@@ -171,7 +159,7 @@ export async function renderNSCs(){
     };
   });
 
-  // Detail öffnen
+  // Detail / Edit öffnen
   tbody.addEventListener('click', (e)=>{
     const tr = e.target.closest('tr.nsc-row');
     if (!tr) return;
@@ -183,9 +171,21 @@ export async function renderNSCs(){
   // + NSC
   const addBtn = document.getElementById('add-nsc');
   if (addBtn) addBtn.onclick = ()=> showAddNSC();
+
+  // Deep-Link: #/nscs?edit=<id>
+  const hash = location.hash || '';
+  const qm = hash.indexOf('?')>=0 ? new URLSearchParams(hash.split('?')[1]) : null;
+  const editId = qm?.get('edit');
+  if (editId){
+    const n = items.find(x=> x.id === editId);
+    if (n) showEditNSC(n);
+    // Hash bereinigen (ohne Query)
+    const base = hash.split('?')[0];
+    history.replaceState(null, '', base);
+  }
 }
 
-/* -------------------------------- */
+/* ============ Detail-Modal ============ */
 function showNSC(n){
   const root = modal(`
     <div class="grid">
@@ -205,8 +205,7 @@ function showNSC(n){
         </div>
         <div class="card" style="margin-top:10px">
           <div class="label">Letzte Begegnung</div>
-          <div>${(lastDisplay(n)) ? formatAvDate(lastDisplay(n)) : '–'}</div>
-          ${n.is_active ? `<div class="small" style="margin-top:6px">Status: Aktiv – nutzt aktuelles Kampagnen-Datum</div>` : ''}
+          <div>${(n.is_active ? null : n.last_encounter) ? formatAvDate(n.last_encounter) : '–'}</div>
         </div>
         <div class="card" style="margin-top:10px">
           <div class="label">Verbleib</div>
@@ -221,11 +220,11 @@ function showNSC(n){
     </div>
   `);
   root.querySelector('#nsc-close').onclick = ()=> root.innerHTML='';
-  root.querySelector('#nsc-edit').onclick = ()=> showEditNSC(n, root);
+  root.querySelector('#nsc-edit').onclick = ()=> { root.innerHTML=''; showEditNSC(n); };
   root.querySelector('#nsc-history').onclick = ()=> showHistoryNSC(n.id);
 }
 
-/* -------------------------------- */
+/* ============ Neu anlegen ============ */
 function showAddNSC(){
   const root = modal(`
     <h3>Neuen NSC anlegen</h3>
@@ -233,10 +232,9 @@ function showAddNSC(){
     ${formRow('Tags (Komma-getrennt)', '<input class="input" id="n-tags" placeholder="z.B. borbaradianer, hof, magier" />')}
     ${formRow('Bild', '<input class="input" id="n-image" type="file" accept="image/*" />')}
     ${formRow('Biographie', '<textarea class="input" id="n-bio" rows="5"></textarea>')}
-    ${avDateInputs('n-first', state.campaignDate, 'Datum Erstbegegnung')}
-    ${formRow('Status', '<label class="small"><input type="checkbox" id="n-active" checked /> Aktiv (ständig in Kontakt)</label>')}
-    <div id="n-last-wrap" style="display:none">
-      ${avDateInputs('n-last', state.campaignDate, 'Datum letzte Begegnung')}
+    <div class="row">
+      ${avDateInputs('n-first', null, 'Datum Erstbegegnung')}
+      ${avDateInputs('n-last',  null, 'Datum letzte Begegnung')}
     </div>
     ${formRow('Verbleib', '<input class="input" id="n-where" />')}
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
@@ -245,57 +243,44 @@ function showAddNSC(){
     </div>
   `);
 
-  // Autocomplete binden
-  attachTagAutocomplete(root.querySelector('#n-tags'));
-
-  const activeCb = root.querySelector('#n-active');
-  const lastWrap = root.querySelector('#n-last-wrap');
-  activeCb.onchange = ()=>{ lastWrap.style.display = activeCb.checked ? 'none' : 'block'; };
+  // Tag-Suggest
+  mountTagSuggest(root.querySelector('#n-tags'));
 
   root.querySelector('#n-cancel').onclick = ()=> root.innerHTML='';
   root.querySelector('#n-save').onclick = async ()=>{
     try{
       const file = document.getElementById('n-image').files[0];
       const image_url = file ? await uploadImage(file, 'nscs') : null;
-      const is_active = document.getElementById('n-active').checked;
-
-      const tagsArr = parseTags(document.getElementById('n-tags').value);
-      const tagsStr = joinTags(tagsArr);
-
       const payload = {
         name: document.getElementById('n-name').value.trim(),
-        tags: tagsStr,
+        tags: parseTags(document.getElementById('n-tags').value).join(', '),
         image_url,
         biography: document.getElementById('n-bio').value,
         first_encounter: readDatePickerAv('n-first'),
-        last_encounter: is_active ? state.campaignDate : readDatePickerAv('n-last'),
-        is_active,
-        whereabouts: document.getElementById('n-where').value.trim()
+        last_encounter: readDatePickerAv('n-last'),
+        whereabouts: document.getElementById('n-where').value.trim(),
+        is_active: false
       };
       if (!payload.name){ alert('Name fehlt'); return; }
+      // Duplikat?
+      const { data:dup } = await supabase.from('nscs').select('id').eq('name', payload.name).maybeSingle();
+      if (dup){ alert('Name bereits vergeben.'); return; }
 
-      const { data: inserted, error } = await supabase.from('nscs').insert(payload).select().single();
+      const { data, error } = await supabase.from('nscs').insert(payload).select('id').single();
       if (error) throw error;
 
-      // globale Tags aktualisieren
-      await upsertTagsToGlobal(tagsArr);
+      // Tags-Table updaten (neue Tags hinzufügen)
+      await upsertNewTags(parseTags(payload.tags));
 
-      // History
-      const username = state.user?.user_metadata?.username || state.user?.email || 'Unbekannt';
-      await supabase.from('nscs_history').insert({
-        nsc_id: inserted.id, action:'insert',
-        changed_by: state.user?.id || null, changed_by_name: username,
-        data: inserted
-      });
-
+      await recordHistoryNSC(data.id, 'create', payload);
       root.innerHTML='';
       location.hash = '#/nscs';
     }catch(err){ alert(err.message); }
   };
 }
 
-/* -------------------------------- */
-function showEditNSC(n, hostModal){
+/* ============ Bearbeiten ============ */
+function showEditNSC(n){
   const root = modal(`
     <h3>NSC bearbeiten</h3>
     ${formRow('Name', `<input class="input" id="e-name" value="${htmlesc(n.name)}" />`)}
@@ -304,8 +289,8 @@ function showEditNSC(n, hostModal){
     ${formRow('Biographie', `<textarea class="input" id="e-bio" rows="5">${htmlesc(n.biography||'')}</textarea>`)}
     ${avDateInputs('e-first', n.first_encounter, 'Datum Erstbegegnung')}
     ${formRow('Status', `<label class="small"><input type="checkbox" id="e-active" ${n.is_active?'checked':''}/> Aktiv (ständig in Kontakt)</label>`)}
-    <div id="e-last-wrap" style="${n.is_active ? 'display:none' : 'display:block'}">
-      ${avDateInputs('e-last', n.last_encounter || state.campaignDate, 'Datum letzte Begegnung')}
+    <div id="e-last-wrap" style="${n.is_active ? 'display:none' : ''}">
+      ${avDateInputs('e-last', n.last_encounter, 'Datum letzte Begegnung')}
     </div>
     ${formRow('Verbleib', `<input class="input" id="e-where" value="${htmlesc(n.whereabouts||'')}" />`)}
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
@@ -314,78 +299,91 @@ function showEditNSC(n, hostModal){
     </div>
   `);
 
-  attachTagAutocomplete(root.querySelector('#e-tags'));
+  // Tag-Suggest
+  mountTagSuggest(root.querySelector('#e-tags'));
 
-  const activeCb = root.querySelector('#e-active');
-  const lastWrap = root.querySelector('#e-last-wrap');
-  activeCb.onchange = ()=>{ lastWrap.style.display = activeCb.checked ? 'none' : 'block'; };
+  // Aktiv-Toggle
+  const cb = root.querySelector('#e-active');
+  const wrapLast = root.querySelector('#e-last-wrap');
+  cb.addEventListener('change', ()=>{ wrapLast.style.display = cb.checked ? 'none' : ''; });
 
   root.querySelector('#e-cancel').onclick = ()=> root.innerHTML='';
   root.querySelector('#e-save').onclick = async ()=>{
     try{
+      const name = document.getElementById('e-name').value.trim();
+      if (!name){ alert('Name fehlt'); return; }
+
+      // Duplikat?
+      if (name !== n.name){
+        const { data:dup } = await supabase.from('nscs').select('id').eq('name', name).maybeSingle();
+        if (dup){ alert('Name bereits vergeben.'); return; }
+      }
+
       const file = document.getElementById('e-image').files[0];
-      const newUrl = file ? await uploadImage(file, 'nscs') : null;
-      const is_active = document.getElementById('e-active').checked;
+      const image_url = file ? await uploadImage(file, 'nscs') : n.image_url;
 
-      const tagsArr = parseTags(document.getElementById('e-tags').value);
-      const tagsStr = joinTags(tagsArr);
-
-      const payload = {
-        name: document.getElementById('e-name').value.trim(),
-        tags: tagsStr,
-        image_url: newUrl || n.image_url,
+      const updated = {
+        name,
+        tags: parseTags(document.getElementById('e-tags').value).join(', '),
+        image_url,
         biography: document.getElementById('e-bio').value,
         first_encounter: readDatePickerAv('e-first'),
-        last_encounter: is_active ? state.campaignDate : readDatePickerAv('e-last'),
-        is_active,
-        whereabouts: document.getElementById('e-where').value.trim()
+        whereabouts: document.getElementById('e-where').value.trim(),
+        is_active: document.getElementById('e-active').checked
       };
-      if (!payload.name){ alert('Name fehlt'); return; }
+      updated.last_encounter = updated.is_active ? null : readDatePickerAv('e-last');
 
-      const { data: updated, error } = await supabase.from('nscs').update(payload).eq('id', n.id).select().single();
+      const { error } = await supabase.from('nscs').update(updated).eq('id', n.id);
       if (error) throw error;
 
-      await upsertTagsToGlobal(tagsArr);
-
-      const username = state.user?.user_metadata?.username || state.user?.email || 'Unbekannt';
-      await supabase.from('nscs_history').insert({
-        nsc_id: n.id, action:'update',
-        changed_by: state.user?.id || null, changed_by_name: username,
-        data: updated
-      });
+      await upsertNewTags(parseTags(updated.tags));
+      await recordHistoryNSC(n.id, 'update', updated);
 
       root.innerHTML='';
-      if (hostModal) hostModal.innerHTML='';
       location.hash = '#/nscs';
     }catch(err){ alert(err.message); }
   };
 }
 
-/* -------------------------------- Verlauf -------------------------------- */
-function renderSnapshotList(d){
-  const parts = [];
-  if ('name' in d) parts.push(`<div><strong>Name:</strong> ${htmlesc(d.name||'')}</div>`);
-  if ('tags' in d) parts.push(`<div><strong>Tags:</strong> ${htmlesc(d.tags||'')}</div>`);
-  if ('is_active' in d) parts.push(`<div><strong>Status:</strong> ${d.is_active?'Aktiv':'Inaktiv'}</div>`);
-  if ('first_encounter' in d) parts.push(`<div><strong>Erstbegegnung:</strong> ${d.first_encounter?formatAvDate(d.first_encounter):'—'}</div>`);
-  if ('last_encounter' in d) parts.push(`<div><strong>Letzte Begegnung:</strong> ${d.last_encounter?formatAvDate(d.last_encounter):'—'}</div>`);
-  if ('whereabouts' in d) parts.push(`<div><strong>Verbleib:</strong> ${htmlesc(d.whereabouts||'')}</div>`);
-  if ('biography' in d) parts.push(`<div class="small" style="white-space:pre-wrap;margin-top:6px">${htmlesc(d.biography||'')}</div>`);
-  return parts.join('');
-}
+/* ============ Verlauf anzeigen (best effort) ============ */
 async function showHistoryNSC(nsc_id){
-  const { data, error } = await supabase.from('nscs_history').select('*').eq('nsc_id', nsc_id).order('created_at', { ascending: false });
-  if (error){ alert(error.message); return; }
-  const items = (data||[]).map(rec=>{
-    const when = new Date(rec.created_at).toLocaleString('de-DE');
-    const who  = rec.changed_by_name || 'Unbekannt';
-    const snap = renderSnapshotList(rec.data || {});
-    return `<div class="card"><div class="small" style="margin-bottom:6px">${when} – ${who} (${rec.action})</div>${snap || '<div class="small">—</div>'}</div>`;
-  }).join('') || '<div class="empty">Noch kein Verlauf.</div>';
-  const root = modal(`
-    <h3 style="margin:0 0 8px 0">Verlauf (NSC)</h3>
-    <div style="display:grid;gap:10px;max-height:60vh;overflow:auto">${items}</div>
-    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px"><button class="btn secondary" id="vh-close">Schließen</button></div>
-  `);
-  root.querySelector('#vh-close').onclick = ()=> root.innerHTML='';
+  try{
+    const { data, error } = await supabase
+      .from('nscs_history')
+      .select('*')
+      .eq('nsc_id', nsc_id)
+      .order('created_at', { ascending:false });
+    if (error) throw error;
+
+    const items = (data||[]).map(rec=>{
+      const when = new Date(rec.created_at).toLocaleString('de-DE');
+      const act  = rec.action || 'change';
+      const json = rec.data ? `<pre class="small" style="white-space:pre-wrap">${htmlesc(JSON.stringify(rec.data, null, 2))}</pre>` : '';
+      return `<div class="card"><div class="small">${when} – ${htmlesc(act)}</div>${json}</div>`;
+    }).join('') || '<div class="empty">Noch kein Verlauf.</div>';
+
+    const root = modal(`
+      <h3 style="margin:0 0 8px 0">Verlauf (NSC)</h3>
+      <div style="display:grid;gap:10px;max-height:60vh;overflow:auto">${items}</div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px"><button class="btn secondary" id="vh-close">Schließen</button></div>
+    `);
+    root.querySelector('#vh-close').onclick = ()=> root.innerHTML='';
+  }catch(err){
+    alert(err.message);
+  }
+}
+
+/* ============ Tags-Table updaten (neue Tags einpflegen) ============ */
+async function upsertNewTags(tagsArr){
+  if (!tagsArr?.length) return;
+  await loadAllTags();
+  const existing = new Set(TAG_CACHE.map(t=>t.toLowerCase()));
+  const toAdd = tagsArr.filter(t => !existing.has(t.toLowerCase())).map(name=>({ name }));
+  if (!toAdd.length) return;
+  try{
+    const { error } = await supabase.from('tags').insert(toAdd);
+    if (!error){
+      TAG_CACHE.push(...toAdd.map(x=>x.name));
+    }
+  }catch(e){ console.warn('tags upsert', e.message); }
 }

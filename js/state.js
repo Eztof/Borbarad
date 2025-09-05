@@ -3,11 +3,16 @@ import { supabase } from './supabaseClient.js';
 export const state = {
   user: null,
   campaignDate: null, // { year, month, day }
+  editRequest: null, // { type:'nsc'|'object', id:string }
   observers: new Set()
 };
 
 function notify(){ state.observers.forEach(fn=>fn(state)); }
 export function subscribe(fn){ state.observers.add(fn); return ()=>state.observers.delete(fn); }
+
+// --- Edit-Request (für Deep-Link „Offen“ -> Edit-Modal) ---
+export function setEditRequest(req){ state.editRequest = req; notify(); }
+export function consumeEditRequest(){ const r = state.editRequest; state.editRequest = null; return r; }
 
 // --- Helpers: Kampagnendatum in DB laden/speichern ---
 async function loadCampaignDateFromDB(){

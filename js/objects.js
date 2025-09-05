@@ -1,43 +1,31 @@
 import { supabase, uploadImage } from './supabaseClient.js';
-import { state } from './state.js';
 import { section, modal, formRow, empty, avatar, dateBadge, avDateInputs } from './components.js';
 import { byStr, htmlesc, readDatePickerAv, formatAvDate } from './utils.js';
 
 let sortField = 'name';
 let sortDir = 1;
 
-/* ============ Tag Helpers (lokal) ============ */
+/* ============ Tag Helpers ============ */
 let TAG_CACHE = null;
-
 async function loadAllTags(){
   if (TAG_CACHE) return TAG_CACHE;
   const { data, error } = await supabase.from('tags').select('name').order('name',{ascending:true});
-  TAG_CACHE = (data||[]).map(r=>r.name);
+  if (error){ console.warn('tags load', error.message); TAG_CACHE = []; return TAG_CACHE; }
+  TAG_CACHE = (data||[]).map(x => String(x.name||'').trim()).filter(Boolean);
   return TAG_CACHE;
 }
-function normalizeTag(t){ return t.toLowerCase().trim().replace(/\s+/g,' '); }
-function parseTags(text){
-  const arr = String(text||'').split(',').map(s=>normalizeTag(s)).filter(Boolean);
-  return Array.from(new Set(arr));
-}
-function joinTags(arr){ return arr.join(', '); }
-
-async function attachTagAutocomplete(inputEl){
+function normalizeTag(s){ return String(s||'').trim().replace(/\s+/g,' '); }
+function parseTags(raw){ return String(raw||'').split(',').map(normalizeTag).filter(Boolean); }
+async function mountTagSuggest(inputEl){
   await loadAllTags();
-  const wrap = document.createElement('div');
-  wrap.className = 'suggest-wrap';
-  inputEl.parentNode.insertBefore(wrap, inputEl);
-  wrap.appendChild(inputEl);
-  const sug = document.createElement('div');
-  sug.className = 'suggest';
-  sug.style.display = 'none';
-  wrap.appendChild(sug);
+  const wrap = document.createElement('div'); wrap.className='suggest-wrap';
+  const sug  = document.createElement('div'); sug.className='suggest'; sug.style.display='none';
+  inputEl.parentElement.insertBefore(wrap, inputEl); wrap.appendChild(inputEl); wrap.appendChild(sug);
 
-  function currentToken(){
-    const val = inputEl.value;
+  function currentTerm(){
+    const val = inputEl.value || '';
     const parts = val.split(',');
-    const last = parts[parts.length-1] ?? '';
-    return normalizeTag(last);
+    return normalizeTag(parts[parts.length-1] || '');
   }
   function existingSet(){ return new Set(parseTags(inputEl.value)); }
   function close(){ sug.style.display='none'; sug.innerHTML=''; }
@@ -45,45 +33,29 @@ async function attachTagAutocomplete(inputEl){
     if (!list.length){ close(); return; }
     sug.innerHTML = list.slice(0,8).map(t=>`<div class="suggest-item" data-v="${htmlesc(t)}">${htmlesc(t)}</div>`).join('');
     sug.style.display = 'block';
-    sug.querySelectorAll('.suggest-item').forEach(it=>{
-      it.onclick = ()=>{
-        const cur = existingSet();
-        const v = it.getAttribute('data-v');
-        cur.add(v);
-        inputEl.value = joinTags(Array.from(cur)) + ', ';
+    sug.querySelectorAll('.suggest-item').forEach(div=>{
+      div.onclick = ()=>{
+        const v = div.getAttribute('data-v');
+        const parts = inputEl.value.split(',');
+        parts[parts.length-1] = ` ${v}`;
+        inputEl.value = parts.join(',').replace(/^ /,'').replace(/ ,/,', ');
+        inputEl.dispatchEvent(new Event('input'));
         close(); inputEl.focus();
       };
     });
   }
-
   inputEl.addEventListener('input', ()=>{
-    const token = currentToken();
-    const exist = existingSet();
-    if (!token){ close(); return; }
-    const list = TAG_CACHE.filter(t => t.includes(token) && !exist.has(t));
-    openWith(list);
+    const q = currentTerm().toLowerCase();
+    const ex = existingSet();
+    if (!q){ close(); return; }
+    const res = TAG_CACHE.filter(t => t.toLowerCase().includes(q) && !ex.has(t));
+    openWith(res);
   });
-  inputEl.addEventListener('keydown', (e)=>{
-    if (e.key === 'Escape'){ close(); }
-    if (e.key === 'Enter'){
-      if (sug.style.display === 'block'){
-        const first = sug.querySelector('.suggest-item');
-        if (first){ first.click(); e.preventDefault(); }
-      }
-    }
-  });
+  inputEl.addEventListener('keydown', (e)=>{ if (e.key==='Escape') close(); });
   document.addEventListener('click', (e)=>{ if (!wrap.contains(e.target)) close(); });
 }
 
-async function upsertTagsToGlobal(tagsArr){
-  if (!tagsArr?.length) return;
-  const rows = tagsArr.map(name => ({ name }));
-  await supabase.from('tags').upsert(rows, { onConflict: 'name' });
-  TAG_CACHE = null;
-  await loadAllTags();
-}
-
-/* -------------------------------- */
+/* ============ DB / Listen ============ */
 async function listObjects(){
   const { data, error } = await supabase
     .from('objects')
@@ -92,19 +64,33 @@ async function listObjects(){
   if (error){ console.error(error); return []; }
   return data;
 }
-function lastDisplay(o){ return o?.is_active ? state.campaignDate : o?.last_seen; }
+
+/* ============ Rendering Tabelle ============ */
 function row(o){
-  const last = lastDisplay(o);
   return `<tr data-id="${o.id}" class="obj-row">
     <td style="display:flex;align-items:center;gap:10px">${avatar(o.image_url, o.name)} <strong>${htmlesc(o.name)}</strong></td>
     <td class="small">${htmlesc(o.tags||'')}</td>
     <td>${o.first_seen ? dateBadge(o.first_seen) : '<span class="small">–</span>'}</td>
-    <td>${last ? dateBadge(last) : '<span class="small">–</span>'}</td>
+    <td>${(o.is_active ? null : o.last_seen) ? dateBadge(o.last_seen) : '<span class="small">–</span>'}</td>
     <td class="small">${htmlesc(o.location||'')}</td>
   </tr>`;
 }
+function sortItems(items){ return items.sort((a,b)=> sortDir * byStr(sortField)(a,b)); }
 
-/* -------------------------------- */
+/* ============ Verlauf aufnehmen (best effort) ============ */
+async function recordHistoryObject(object_id, action, snapshot){
+  try{
+    await supabase.from('objects_history').insert({
+      object_id,
+      action,
+      data: snapshot
+    });
+  }catch(e){
+    console.warn('objects_history skip:', e.message);
+  }
+}
+
+/* ============ Seiten-Renderer ============ */
 export async function renderObjects(){
   const app = document.getElementById('app');
   let items = await listObjects();
@@ -125,7 +111,7 @@ export async function renderObjects(){
               <th data-sf="name">Name</th>
               <th data-sf="tags">Tags</th>
               <th>Erstes Auftauchen</th>
-              <th>Letzter Kontakt</th>
+              <th>Letztes Auftauchen</th>
               <th>Ort</th>
             </tr>
           </thead>
@@ -141,6 +127,7 @@ export async function renderObjects(){
 
   const tbody = document.getElementById('obj-tbody');
 
+  // Suche
   const q = document.getElementById('obj-q');
   q.addEventListener('input', ()=>{
     const v = q.value.toLowerCase();
@@ -148,16 +135,18 @@ export async function renderObjects(){
     tbody.innerHTML = filtered.map(row).join('');
   });
 
+  // Sortier-Header
   document.querySelectorAll('th[data-sf]').forEach(th=>{
     th.style.cursor='pointer';
     th.onclick = ()=>{
-      const f=th.dataset.sf;
+      const f = th.dataset.sf;
       sortField===f ? (sortDir*=-1) : (sortField=f, sortDir=1);
-      items.sort((a,b)=> sortDir * byStr(sortField)(a,b));
+      items = sortItems(items);
       tbody.innerHTML = items.map(row).join('');
     };
   });
 
+  // Detail / Edit öffnen
   tbody.addEventListener('click', (e)=>{
     const tr = e.target.closest('tr.obj-row');
     if (!tr) return;
@@ -166,11 +155,23 @@ export async function renderObjects(){
     if (o) showObject(o);
   });
 
+  // + Objekt
   const addBtn = document.getElementById('add-obj');
   if (addBtn) addBtn.onclick = ()=> showAddObject();
+
+  // Deep-Link: #/objects?edit=<id>
+  const hash = location.hash || '';
+  const qm = hash.indexOf('?')>=0 ? new URLSearchParams(hash.split('?')[1]) : null;
+  const editId = qm?.get('edit');
+  if (editId){
+    const o = items.find(x=> x.id === editId);
+    if (o) showEditObject(o);
+    const base = hash.split('?')[0];
+    history.replaceState(null, '', base);
+  }
 }
 
-/* -------------------------------- */
+/* ============ Detail-Modal ============ */
 function showObject(o){
   const root = modal(`
     <div class="grid">
@@ -189,9 +190,8 @@ function showObject(o){
           <div>${o.first_seen ? formatAvDate(o.first_seen) : '–'}</div>
         </div>
         <div class="card" style="margin-top:10px">
-          <div class="label">Letzter Kontakt</div>
-          <div>${(lastDisplay(o)) ? formatAvDate(lastDisplay(o)) : '–'}</div>
-          ${o.is_active ? `<div class="small" style="margin-top:6px">Status: Aktiv – nutzt aktuelles Kampagnen-Datum</div>` : ''}
+          <div class="label">Letztes Auftauchen</div>
+          <div>${(o.is_active ? null : o.last_seen) ? formatAvDate(o.last_seen) : '–'}</div>
         </div>
         <div class="card" style="margin-top:10px">
           <div class="label">Ort</div>
@@ -206,22 +206,21 @@ function showObject(o){
     </div>
   `);
   root.querySelector('#obj-close').onclick = ()=> root.innerHTML='';
-  root.querySelector('#obj-edit').onclick = ()=> showEditObject(o, root);
+  root.querySelector('#obj-edit').onclick = ()=> { root.innerHTML=''; showEditObject(o); };
   root.querySelector('#obj-history').onclick = ()=> showHistoryObject(o.id);
 }
 
-/* -------------------------------- */
+/* ============ Neu anlegen ============ */
 function showAddObject(){
   const root = modal(`
     <h3>Neues Objekt</h3>
     ${formRow('Name', '<input class="input" id="o-name" />')}
-    ${formRow('Tags (Komma-getrennt)', '<input class="input" id="o-tags" placeholder="z.B. artefakt, borbaradianer, hof" />')}
+    ${formRow('Tags (Komma-getrennt)', '<input class="input" id="o-tags" placeholder="z.B. borbaradianer, schlüssel, artefakt" />')}
     ${formRow('Bild', '<input class="input" id="o-image" type="file" accept="image/*" />')}
     ${formRow('Beschreibung', '<textarea class="input" id="o-desc" rows="5"></textarea>')}
-    ${avDateInputs('o-first', state.campaignDate, 'Datum Erstkontakt')}
-    ${formRow('Status', '<label class="small"><input type="checkbox" id="o-active" checked /> Aktiv (im Besitz / in Nutzung)</label>')}
-    <div id="o-last-wrap" style="display:none">
-      ${avDateInputs('o-last', state.campaignDate, 'Datum letzter Kontakt')}
+    <div class="row">
+      ${avDateInputs('o-first', null, 'Datum Erstkontakt')}
+      ${avDateInputs('o-last',  null, 'Datum letzter Kontakt')}
     </div>
     ${formRow('Ort', '<input class="input" id="o-loc" />')}
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
@@ -230,45 +229,32 @@ function showAddObject(){
     </div>
   `);
 
-  attachTagAutocomplete(root.querySelector('#o-tags'));
-
-  const activeCb = root.querySelector('#o-active');
-  const lastWrap = root.querySelector('#o-last-wrap');
-  activeCb.onchange = ()=>{ lastWrap.style.display = activeCb.checked ? 'none' : 'block'; };
+  mountTagSuggest(root.querySelector('#o-tags'));
 
   root.querySelector('#o-cancel').onclick = ()=> root.innerHTML='';
   root.querySelector('#o-save').onclick = async ()=>{
     try{
       const file = document.getElementById('o-image').files[0];
       const image_url = file ? await uploadImage(file, 'objects') : null;
-      const is_active = document.getElementById('o-active').checked;
-
-      const tagsArr = parseTags(document.getElementById('o-tags').value);
-      const tagsStr = joinTags(tagsArr);
-
       const payload = {
         name: document.getElementById('o-name').value.trim(),
-        tags: tagsStr,
+        tags: parseTags(document.getElementById('o-tags').value).join(', '),
         image_url,
         description: document.getElementById('o-desc').value,
         first_seen: readDatePickerAv('o-first'),
-        last_seen: is_active ? state.campaignDate : readDatePickerAv('o-last'),
-        is_active,
-        location: document.getElementById('o-loc').value.trim()
+        last_seen: readDatePickerAv('o-last'),
+        location: document.getElementById('o-loc').value.trim(),
+        is_active: false
       };
       if (!payload.name){ alert('Name fehlt'); return; }
+      const { data:dup } = await supabase.from('objects').select('id').eq('name', payload.name).maybeSingle();
+      if (dup){ alert('Name bereits vergeben.'); return; }
 
-      const { data: inserted, error } = await supabase.from('objects').insert(payload).select().single();
+      const { data, error } = await supabase.from('objects').insert(payload).select('id').single();
       if (error) throw error;
 
-      await upsertTagsToGlobal(tagsArr);
-
-      const username = state.user?.user_metadata?.username || state.user?.email || 'Unbekannt';
-      await supabase.from('objects_history').insert({
-        object_id: inserted.id, action:'insert',
-        changed_by: state.user?.id || null, changed_by_name: username,
-        data: inserted
-      });
+      await upsertNewTags(parseTags(payload.tags));
+      await recordHistoryObject(data.id, 'create', payload);
 
       root.innerHTML='';
       location.hash = '#/objects';
@@ -276,8 +262,8 @@ function showAddObject(){
   };
 }
 
-/* -------------------------------- */
-function showEditObject(o, hostModal){
+/* ============ Bearbeiten ============ */
+function showEditObject(o){
   const root = modal(`
     <h3>Objekt bearbeiten</h3>
     ${formRow('Name', `<input class="input" id="e-name" value="${htmlesc(o.name)}" />`)}
@@ -285,9 +271,9 @@ function showEditObject(o, hostModal){
     ${formRow('Bild (neu hochladen, optional)', '<input class="input" id="e-image" type="file" accept="image/*" />')}
     ${formRow('Beschreibung', `<textarea class="input" id="e-desc" rows="5">${htmlesc(o.description||'')}</textarea>`)}
     ${avDateInputs('e-first', o.first_seen, 'Datum Erstkontakt')}
-    ${formRow('Status', `<label class="small"><input type="checkbox" id="e-active" ${o.is_active?'checked':''}/> Aktiv (im Besitz / in Nutzung)</label>`)}
-    <div id="e-last-wrap" style="${o.is_active ? 'display:none' : 'display:block'}">
-      ${avDateInputs('e-last', o.last_seen || state.campaignDate, 'Datum letzter Kontakt')}
+    ${formRow('Status', `<label class="small"><input type="checkbox" id="e-active" ${o.is_active?'checked':''}/> Aktiv (ständig in Kontakt)</label>`)}
+    <div id="e-last-wrap" style="${o.is_active ? 'display:none' : ''}">
+      ${avDateInputs('e-last', o.last_seen, 'Datum letzter Kontakt')}
     </div>
     ${formRow('Ort', `<input class="input" id="e-loc" value="${htmlesc(o.location||'')}" />`)}
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
@@ -296,78 +282,87 @@ function showEditObject(o, hostModal){
     </div>
   `);
 
-  attachTagAutocomplete(root.querySelector('#e-tags'));
+  mountTagSuggest(root.querySelector('#e-tags'));
 
-  const activeCb = root.querySelector('#e-active');
-  const lastWrap = root.querySelector('#e-last-wrap');
-  activeCb.onchange = ()=>{ lastWrap.style.display = activeCb.checked ? 'none' : 'block'; };
+  const cb = root.querySelector('#e-active');
+  const wrapLast = root.querySelector('#e-last-wrap');
+  cb.addEventListener('change', ()=>{ wrapLast.style.display = cb.checked ? 'none' : ''; });
 
   root.querySelector('#e-cancel').onclick = ()=> root.innerHTML='';
   root.querySelector('#e-save').onclick = async ()=>{
     try{
+      const name = document.getElementById('e-name').value.trim();
+      if (!name){ alert('Name fehlt'); return; }
+      if (name !== o.name){
+        const { data:dup } = await supabase.from('objects').select('id').eq('name', name).maybeSingle();
+        if (dup){ alert('Name bereits vergeben.'); return; }
+      }
+
       const file = document.getElementById('e-image').files[0];
-      const newUrl = file ? await uploadImage(file, 'objects') : null;
-      const is_active = document.getElementById('e-active').checked;
+      const image_url = file ? await uploadImage(file, 'objects') : o.image_url;
 
-      const tagsArr = parseTags(document.getElementById('e-tags').value);
-      const tagsStr = joinTags(tagsArr);
-
-      const payload = {
-        name: document.getElementById('e-name').value.trim(),
-        tags: tagsStr,
-        image_url: newUrl || o.image_url,
+      const updated = {
+        name,
+        tags: parseTags(document.getElementById('e-tags').value).join(', '),
+        image_url,
         description: document.getElementById('e-desc').value,
         first_seen: readDatePickerAv('e-first'),
-        last_seen: is_active ? state.campaignDate : readDatePickerAv('e-last'),
-        is_active,
-        location: document.getElementById('e-loc').value.trim()
+        location: document.getElementById('e-loc').value.trim(),
+        is_active: document.getElementById('e-active').checked
       };
-      if (!payload.name){ alert('Name fehlt'); return; }
+      updated.last_seen = updated.is_active ? null : readDatePickerAv('e-last');
 
-      const { data: updated, error } = await supabase.from('objects').update(payload).eq('id', o.id).select().single();
+      const { error } = await supabase.from('objects').update(updated).eq('id', o.id);
       if (error) throw error;
 
-      await upsertTagsToGlobal(tagsArr);
-
-      const username = state.user?.user_metadata?.username || state.user?.email || 'Unbekannt';
-      await supabase.from('objects_history').insert({
-        object_id: o.id, action:'update',
-        changed_by: state.user?.id || null, changed_by_name: username,
-        data: updated
-      });
+      await upsertNewTags(parseTags(updated.tags));
+      await recordHistoryObject(o.id, 'update', updated);
 
       root.innerHTML='';
-      if (hostModal) hostModal.innerHTML='';
       location.hash = '#/objects';
     }catch(err){ alert(err.message); }
   };
 }
 
-/* -------------------------------- Verlauf -------------------------------- */
-function renderSnapshotList(d){
-  const parts = [];
-  if ('name' in d) parts.push(`<div><strong>Name:</strong> ${htmlesc(d.name||'')}</div>`);
-  if ('tags' in d) parts.push(`<div><strong>Tags:</strong> ${htmlesc(d.tags||'')}</div>`);
-  if ('is_active' in d) parts.push(`<div><strong>Status:</strong> ${d.is_active?'Aktiv':'Inaktiv'}</div>`);
-  if ('first_seen' in d) parts.push(`<div><strong>Erstkontakt:</strong> ${d.first_seen?formatAvDate(d.first_seen):'—'}</div>`);
-  if ('last_seen' in d) parts.push(`<div><strong>Letzter Kontakt:</strong> ${d.last_seen?formatAvDate(d.last_seen):'—'}</div>`);
-  if ('location' in d) parts.push(`<div><strong>Ort:</strong> ${htmlesc(d.location||'')}</div>`);
-  if ('description' in d) parts.push(`<div class="small" style="white-space:pre-wrap;margin-top:6px">${htmlesc(d.description||'')}</div>`);
-  return parts.join('');
-}
+/* ============ Verlauf ============ */
 async function showHistoryObject(object_id){
-  const { data, error } = await supabase.from('objects_history').select('*').eq('object_id', object_id).order('created_at', { ascending: false });
-  if (error){ alert(error.message); return; }
-  const items = (data||[]).map(rec=>{
-    const when = new Date(rec.created_at).toLocaleString('de-DE');
-    const who  = rec.changed_by_name || 'Unbekannt';
-    const snap = renderSnapshotList(rec.data || {});
-    return `<div class="card"><div class="small" style="margin-bottom:6px">${when} – ${who} (${rec.action})</div>${snap || '<div class="small">—</div>'}</div>`;
-  }).join('') || '<div class="empty">Noch kein Verlauf.</div>';
-  const root = modal(`
-    <h3 style="margin:0 0 8px 0">Verlauf (Objekt)</h3>
-    <div style="display:grid;gap:10px;max-height:60vh;overflow:auto">${items}</div>
-    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px"><button class="btn secondary" id="vh-close">Schließen</button></div>
-  `);
-  root.querySelector('#vh-close').onclick = ()=> root.innerHTML='';
+  try{
+    const { data, error } = await supabase
+      .from('objects_history')
+      .select('*')
+      .eq('object_id', object_id)
+      .order('created_at', { ascending:false });
+    if (error) throw error;
+
+    const items = (data||[]).map(rec=>{
+      const when = new Date(rec.created_at).toLocaleString('de-DE');
+      const act  = rec.action || 'change';
+      const json = rec.data ? `<pre class="small" style="white-space:pre-wrap">${htmlesc(JSON.stringify(rec.data, null, 2))}</pre>` : '';
+      return `<div class="card"><div class="small">${when} – ${htmlesc(act)}</div>${json}</div>`;
+    }).join('') || '<div class="empty">Noch kein Verlauf.</div>';
+
+    const root = modal(`
+      <h3 style="margin:0 0 8px 0">Verlauf (Objekt)</h3>
+      <div style="display:grid;gap:10px;max-height:60vh;overflow:auto">${items}</div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px"><button class="btn secondary" id="vh-close">Schließen</button></div>
+    `);
+    root.querySelector('#vh-close').onclick = ()=> root.innerHTML='';
+  }catch(err){
+    alert(err.message);
+  }
+}
+
+/* ============ Tags-Table updaten ============ */
+async function upsertNewTags(tagsArr){
+  if (!tagsArr?.length) return;
+  await loadAllTags();
+  const existing = new Set(TAG_CACHE.map(t=>t.toLowerCase()));
+  const toAdd = tagsArr.filter(t => !existing.has(t.toLowerCase())).map(name=>({ name }));
+  if (!toAdd.length) return;
+  try{
+    const { error } = await supabase.from('tags').insert(toAdd);
+    if (!error){
+      TAG_CACHE.push(...toAdd.map(x=>x.name));
+    }
+  }catch(e){ console.warn('tags upsert', e.message); }
 }
