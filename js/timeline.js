@@ -1,5 +1,5 @@
 // js/timeline.js
-// Zoombarer & scrollbarer Aventurien-Zeitstrahl mit Segment-Linien und Gruppen-Filtern
+// Bildschirmfreundlicher Aventurien-Zeitstrahl mit Auto-Fit, Zeitfenster, Zoom, Scroll & Filtern
 
 import { supabase } from './supabaseClient.js';
 import { section, empty, modal } from './components.js';
@@ -7,7 +7,6 @@ import {
   AV_MONTHS,
   avToDayNumber,
   dayNumberToAv,
-  avToISO,
   formatAvDate,
   htmlesc
 } from './utils.js';
@@ -16,42 +15,30 @@ import { state } from './state.js';
 /* =========================
    Persistente Einstellungen
    ========================= */
-const LS_KEY = 'timeline.settings.v2';
+const LS_KEY = 'timeline.settings.v3';
 function loadSettings() {
-  try {
-    const raw = localStorage.getItem(LS_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw);
-  } catch { return null; }
+  try { return JSON.parse(localStorage.getItem(LS_KEY) || '{}'); } catch { return {}; }
 }
 function saveSettings(s) { localStorage.setItem(LS_KEY, JSON.stringify(s)); }
 
 let SETTINGS = Object.assign({
-  pxPerDay: 18,                 // Zoomstufe (Pixel/Tag)
+  pxPerDay: 12,                      // nur relevant, wenn autoFit=false
+  autoFit: true,                     // << Standard: Timeline passt sich Kartenbreite an
+  window: '12m',                     // '3m' | '6m' | '12m' | 'all'
   showGroups: { story:true, nsc:true, object:true },
   compactLabels: true
 }, loadSettings() || {});
 
 /* ==============
-   Hilfsfunktionen
+   Konstanten
    ============== */
 const clamp = (v, a, b)=> Math.max(a, Math.min(b, v));
-const PX_MIN = 6, PX_MAX = 60;
-const ROW_H = 18, ROW_GAP = 6, TRACK_PAD = 8;  // Segment-Höhen etc.
+const PX_MIN = 4, PX_MAX = 60;
+const ROW_H = 18, ROW_GAP = 6, TRACK_PAD = 8;  // Segment-Layout
 
-function monthKey(av){ return `${av.year}-${av.month}`; }
-function addDays(num, delta){ return num + delta; }
-
-function titleForSeg(seg){
-  const s = formatAvDate(dayNumberToAv(seg.start));
-  const e = formatAvDate(dayNumberToAv(seg.end));
-  if (seg.kind==='story') return `${seg.label}\n${s}${seg.end>seg.start?` – ${e}`:''}`;
-  return `${seg.label}\n${s} – ${e}`;
-}
-
-/* ======================
-   Datenaufbereitung
-   ====================== */
+/* ==============
+   Daten laden
+   ============== */
 async function fetchAll() {
   const [evRes, nscRes, objRes] = await Promise.all([
     supabase.from('events').select('id,title,av_date,av_date_end,type,description,location'),
@@ -65,20 +52,24 @@ async function fetchAll() {
   };
 }
 
-// Liefert Segmente (start/end sind DayNumbers relativ zum BF-Kalender)
+/* ======================
+   Segmente bauen
+   ====================== */
+let CACHED_SEGMENTS = [];
+
 function buildSegments({ events, nscs, objects }){
   const cur = state.campaignDate || {year:1027, month:1, day:1};
   const curDN = avToDayNumber(cur);
   const segs = [];
 
-  // Story-Events
+  // Story
   for (const e of events){
     if (!e.av_date) continue;
     const s = avToDayNumber(e.av_date);
-    const eEnd = e.av_date_end ? avToDayNumber(e.av_date_end) : s; // Ein-Tages-Strecken okay
+    const eEnd = e.av_date_end ? avToDayNumber(e.av_date_end) : s;
     segs.push({
       id: e.id, kind:'story', label: e.title,
-      start: Math.min(s, eEnd), end: Math.max(s, eEnd),
+      start: Math.min(s, eEnd), end: Math.max(s, eEnd) + 1, // +1 = minimale sichtbare Länge
       meta: e
     });
   }
@@ -91,7 +82,7 @@ function buildSegments({ events, nscs, objects }){
     const eDN = lastAv ? avToDayNumber(lastAv) : s;
     segs.push({
       id: n.id, kind:'nsc', label: n.name,
-      start: Math.min(s, eDN), end: Math.max(s, eDN),
+      start: Math.min(s, eDN), end: Math.max(s, eDN) + 1,
       meta: n
     });
   }
@@ -104,148 +95,159 @@ function buildSegments({ events, nscs, objects }){
     const eDN = lastAv ? avToDayNumber(lastAv) : s;
     segs.push({
       id: o.id, kind:'object', label: o.name,
-      start: Math.min(s, eDN), end: Math.max(s, eDN),
+      start: Math.min(s, eDN), end: Math.max(s, eDN) + 1,
       meta: o
     });
   }
 
-  // minimale Strich-Breite (1 Tag) sicherstellen
-  segs.forEach(s=>{ if (s.end === s.start) s.end = s.start + 1; });
   return segs;
 }
 
 /* =======================
-   Layout (Packen in Reihen)
+   Zeitbereich bestimmen
    ======================= */
-// Packe pro Gruppe in Reihen, damit nichts überlappt
+function totalRange(segs){
+  let min = Infinity, max = -Infinity;
+  for (const s of segs){ if (s.start < min) min = s.start; if (s.end > max) max = s.end; }
+  if (!isFinite(min)) {
+    const dn = avToDayNumber(state.campaignDate || {year:1027,month:1,day:1});
+    return { start: dn - 45, end: dn + 45 }; // 3 Monate Fallback
+  }
+  return { start: min - 15, end: max + 15 }; // 1/2 Monat Rand
+}
+
+function rangeFromWindow(mode){
+  const cur = state.campaignDate || {year:1027,month:1,day:1};
+  const c = avToDayNumber(cur);
+  const map = { '3m':90, '6m':180, '12m':360 };
+  const days = map[mode] || 180;
+  return { start: c - Math.floor(days/2), end: c + Math.ceil(days/2) };
+}
+
+/* =======================
+   Reihen-Pack-Layout
+   ======================= */
 function packByRows(items){
-  // Sortiert nach Start
   const list = [...items].sort((a,b)=> a.start - b.start || a.end - b.end);
-  const rows = [];                       // rows[i] = lastEnd
+  const rows = [];       // rows[i] = lastEnd
   const placed = [];
 
   for (const it of list){
     let rowIdx = rows.findIndex(lastEnd => lastEnd <= it.start);
     if (rowIdx === -1){ rowIdx = rows.length; rows.push(-Infinity); }
-    rows[rowIdx] = it.end + 0.1;         // leichte Lücke
+    rows[rowIdx] = it.end + 0.25; // kleine Lücke
     placed.push({ ...it, row: rowIdx });
   }
-  const rowCount = rows.length || 1;
-  return { items: placed, rowCount };
+  return { items: placed, rowCount: rows.length || 1 };
 }
 
 /* =======================
-   Skala vorbereiten
+   Rendering Helpers
    ======================= */
-function findRange(segs){
-  let min = Infinity, max = -Infinity;
-  for (const s of segs){
-    if (s.start < min) min = s.start;
-    if (s.end   > max) max = s.end;
-  }
-  if (!isFinite(min)) {
-    // Fallback: Heute ± 6 Monate
-    const dn = avToDayNumber(state.campaignDate || {year:1027,month:1,day:1});
-    return { start: dn - 90, end: dn + 90 };
-  }
-  // Padding um 1 Monat
-  return { start: min - 15, end: max + 15 };
+function segClass(kind){ return kind==='nsc' ? 'seg-nsc' : (kind==='object' ? 'seg-object' : 'seg-story'); }
+function titleFor(seg){
+  const s = formatAvDate(dayNumberToAv(seg.start));
+  const e = formatAvDate(dayNumberToAv(seg.end-1));
+  if (seg.kind==='story') return `${seg.label}\n${s}${seg.end>seg.start?` – ${e}`:''}`;
+  return `${seg.label}\n${s} – ${e}`;
 }
 
-function buildMonths(range){
-  // In unserem Kalender hat jeder Monat 30 Tage – einfach
-  const firstMonthIdx = Math.floor(range.start / 30);
-  const lastMonthIdx  = Math.floor((range.end-1) / 30);
-  const months = [];
-  for (let m = firstMonthIdx; m <= lastMonthIdx; m++){
-    const y = Math.floor(m / 12);
-    const mo = (m % 12) + 1;
-    months.push({ year:y, month:mo, startDN: m*30, endDN: (m+1)*30 });
-  }
-  return months;
-}
+let RANGE = null;         // aktueller Anzeigebereich (DayNumbers)
+let PPD = SETTINGS.pxPerDay; // aktuelle Pixel/Tag (kann sich bei AutoFit ändern)
 
-/* ======================
-   Rendering
-   ====================== */
-
-let CACHED_SEGMENTS = [];
-let RANGE = null;
-
+/* =======================
+   Bedienleiste
+   ======================= */
 function renderControls(host){
   host.innerHTML = `
     <div class="tl-controls">
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
         <div class="small">Gruppen:</div>
         <label class="tag"><input type="checkbox" id="tl-f-story" ${SETTINGS.showGroups.story?'checked':''}/> Story</label>
         <label class="tag"><input type="checkbox" id="tl-f-nsc" ${SETTINGS.showGroups.nsc?'checked':''}/> NSCs</label>
         <label class="tag"><input type="checkbox" id="tl-f-obj" ${SETTINGS.showGroups.object?'checked':''}/> Objekte</label>
 
-        <span style="width:1px;height:20px;background:var(--line-soft);margin:0 6px"></span>
+        <span style="width:1px;height:20px;background:var(--line-soft);margin:0 4px"></span>
+
+        <div class="small">Zeitfenster:</div>
+        <select id="tl-window" class="input" style="width:140px;height:34px;padding:0 8px">
+          <option value="3m"  ${SETTINGS.window==='3m'?'selected':''}>3 Monate</option>
+          <option value="6m"  ${SETTINGS.window==='6m'?'selected':''}>6 Monate</option>
+          <option value="12m" ${SETTINGS.window==='12m'?'selected':''}>12 Monate</option>
+          <option value="all" ${SETTINGS.window==='all'?'selected':''}>Gesamt</option>
+        </select>
+
+        <label class="tag"><input type="checkbox" id="tl-autofit" ${SETTINGS.autoFit?'checked':''}/> Auto-Fit</label>
+
+        <span style="width:1px;height:20px;background:var(--line-soft);margin:0 4px"></span>
 
         <div class="small">Zoom:</div>
         <button class="btn secondary" id="tl-zoom-out" title="Zoom out">–</button>
         <input id="tl-zoom-range" type="range" min="${PX_MIN}" max="${PX_MAX}" value="${SETTINGS.pxPerDay}" style="width:160px">
         <button class="btn secondary" id="tl-zoom-in" title="Zoom in">+</button>
-        <button class="btn secondary" id="tl-fit" title="Gesamte Daten einpassen">Fit</button>
+
+        <button class="btn secondary" id="tl-fit" title="An Kartenbreite anpassen">Fit</button>
         <button class="btn secondary" id="tl-today" title="Heute (Kampagnendatum)">Heute</button>
 
-        <span style="width:1px;height:20px;background:var(--line-soft);margin:0 6px"></span>
+        <span style="width:1px;height:20px;background:var(--line-soft);margin:0 4px"></span>
         <label class="tag"><input type="checkbox" id="tl-compact" ${SETTINGS.compactLabels?'checked':''}/> kompakt</label>
       </div>
     </div>
   `;
 
-  const apply = ()=>{ saveSettings(SETTINGS); drawTimeline(); };
+  const apply = ()=>{ saveSettings(SETTINGS); drawTimeline(true); };
+  const zoomRange = host.querySelector('#tl-zoom-range');
+  const setZoomEnabled = (on)=>{ zoomRange.disabled = !on; host.querySelector('#tl-zoom-in').disabled = !on; host.querySelector('#tl-zoom-out').disabled = !on; };
+  setZoomEnabled(!SETTINGS.autoFit);
 
   host.querySelector('#tl-f-story').onchange = (e)=>{ SETTINGS.showGroups.story = e.target.checked; apply(); };
   host.querySelector('#tl-f-nsc').onchange   = (e)=>{ SETTINGS.showGroups.nsc   = e.target.checked; apply(); };
   host.querySelector('#tl-f-obj').onchange   = (e)=>{ SETTINGS.showGroups.object= e.target.checked; apply(); };
+
+  host.querySelector('#tl-window').onchange  = (e)=>{ SETTINGS.window = e.target.value; apply(); };
+  host.querySelector('#tl-autofit').onchange = (e)=>{ SETTINGS.autoFit = e.target.checked; setZoomEnabled(!SETTINGS.autoFit); apply(); };
   host.querySelector('#tl-compact').onchange = (e)=>{ SETTINGS.compactLabels = e.target.checked; apply(); };
 
-  host.querySelector('#tl-zoom-in').onclick  = ()=>{ SETTINGS.pxPerDay = clamp(SETTINGS.pxPerDay*1.2, PX_MIN, PX_MAX); apply(); };
-  host.querySelector('#tl-zoom-out').onclick = ()=>{ SETTINGS.pxPerDay = clamp(SETTINGS.pxPerDay/1.2, PX_MIN, PX_MAX); apply(); };
-  host.querySelector('#tl-zoom-range').oninput = (e)=>{ SETTINGS.pxPerDay = clamp(+e.target.value, PX_MIN, PX_MAX); apply(); };
+  host.querySelector('#tl-zoom-in').onclick  = ()=>{ SETTINGS.pxPerDay = clamp(SETTINGS.pxPerDay*1.2, PX_MIN, PX_MAX); zoomRange.value = SETTINGS.pxPerDay; apply(); };
+  host.querySelector('#tl-zoom-out').onclick = ()=>{ SETTINGS.pxPerDay = clamp(SETTINGS.pxPerDay/1.2, PX_MIN, PX_MAX); zoomRange.value = SETTINGS.pxPerDay; apply(); };
+  zoomRange.oninput = (e)=>{ SETTINGS.pxPerDay = clamp(+e.target.value, PX_MIN, PX_MAX); apply(); };
 
-  host.querySelector('#tl-fit').onclick = ()=>{ fitToWidth(); };
+  host.querySelector('#tl-fit').onclick   = ()=>{ SETTINGS.autoFit = true; setZoomEnabled(false); apply(); };
   host.querySelector('#tl-today').onclick = ()=>{ scrollToDay(avToDayNumber(state.campaignDate||{year:1027,month:1,day:1})); };
 }
 
-function fitToWidth(){
-  const wrap = document.getElementById('tl-scroll');
-  if (!wrap || !RANGE) return;
-  const totalDays = (RANGE.end - RANGE.start);
-  const target = clamp((wrap.clientWidth - 200) / totalDays, PX_MIN, PX_MAX); // etwas Luft
-  SETTINGS.pxPerDay = target;
-  saveSettings(SETTINGS);
-  drawTimeline();
-  wrap.scrollLeft = 0;
-}
-
-function scrollToDay(dayNumber){
-  const wrap = document.getElementById('tl-scroll');
-  const x = (dayNumber - RANGE.start) * SETTINGS.pxPerDay;
-  wrap.scrollLeft = clamp(x - wrap.clientWidth/2, 0, (RANGE.end - RANGE.start)*SETTINGS.pxPerDay - wrap.clientWidth);
+/* =======================
+   Zeichnen
+   ======================= */
+function computeDisplayRange(activeSegs){
+  if (SETTINGS.window === 'all') return totalRange(activeSegs);
+  return rangeFromWindow(SETTINGS.window);
 }
 
 function renderScale(months){
   const scale = document.getElementById('tl-scale');
-  scale.innerHTML = months.map(m=>{
-    const width = Math.max(1, (m.endDN - Math.max(m.startDN, RANGE.start) - Math.max(0, RANGE.start - m.startDN)) * SETTINGS.pxPerDay);
+  scale.innerHTML = months.map(m => {
+    const w = 30 * PPD;
     const label = `${AV_MONTHS[m.month-1]} ${m.year} BF`;
-    return `<div class="tl-scale-cell" style="min-width:${30*SETTINGS.pxPerDay}px;width:${30*SETTINGS.pxPerDay}px">
+    return `<div class="tl-scale-cell" style="min-width:${w}px;width:${w}px">
       <div class="tl-scale-month">${htmlesc(label)}</div>
     </div>`;
   }).join('');
 }
 
-function segColorClass(kind){
-  if (kind==='nsc') return 'seg-nsc';
-  if (kind==='object') return 'seg-object';
-  return 'seg-story';
+function buildMonths(range){
+  const first = Math.floor(range.start / 30);
+  const last  = Math.floor((range.end-1) / 30);
+  const out = [];
+  for (let m=first; m<=last; m++){
+    const y = Math.floor(m/12);
+    const mo = (m%12)+1;
+    out.push({ year:y, month:mo });
+  }
+  return out;
 }
 
-function renderLane(title, items, laneId){
+function packAndRenderLane(title, items){
   const track = document.createElement('div');
   track.className = 'lane';
   track.innerHTML = `
@@ -254,32 +256,41 @@ function renderLane(title, items, laneId){
   `;
   const body = track.querySelector('.track-body');
 
-  // Packen in Reihen
-  const { items: placed, rowCount } = packByRows(items);
-  const trackHeight = Math.max( ROW_H*rowCount + ROW_GAP*(rowCount-1) + TRACK_PAD*2, 40 );
-  track.querySelector('.lane-track').style.height = `${trackHeight}px`;
+  // Nur Items rendern, die im Range sichtbar sind (Clipping)
+  const clipped = items
+    .map(s => ({
+      ...s,
+      start: Math.max(s.start, RANGE.start),
+      end:   Math.min(s.end,   RANGE.end)
+    }))
+    .filter(s => s.end > s.start);
+
+  // Reihen packen
+  const { items: placed, rowCount } = packByRows(clipped);
+  track.querySelector('.lane-track').style.height =
+    `${Math.max(ROW_H*rowCount + ROW_GAP*(rowCount-1) + TRACK_PAD*2, 40)}px`;
 
   for (const it of placed){
-    // in Pixel umrechnen
-    const left = (it.start - RANGE.start) * SETTINGS.pxPerDay;
-    const width = Math.max(1, (it.end - it.start) * SETTINGS.pxPerDay);
-    const top = TRACK_PAD + it.row*(ROW_H+ROW_GAP);
+    const left  = (it.start - RANGE.start) * PPD;
+    const width = Math.max(1, (it.end - it.start) * PPD);
+    const top   = TRACK_PAD + it.row*(ROW_H+ROW_GAP);
 
     const div = document.createElement('div');
-    div.className = `seg ${segColorClass(it.kind)} ${SETTINGS.compactLabels?'compact':''}`;
+    div.className = `seg ${segClass(it.kind)} ${SETTINGS.compactLabels?'compact':''}`;
     div.style.left = `${left}px`;
     div.style.width = `${width}px`;
     div.style.top = `${top}px`;
-    div.title = titleForSeg(it);
+    div.title = titleFor(it);
 
-    const label = document.createElement('div');
-    label.className = 'seg-label';
-    label.textContent = it.label;
-    div.appendChild(label);
+    const lab = document.createElement('div');
+    lab.className = 'seg-label';
+    lab.textContent = it.label;
+    div.appendChild(lab);
 
     div.addEventListener('click', ()=> openDetails(it));
     body.appendChild(div);
   }
+
   return track;
 }
 
@@ -316,46 +327,76 @@ async function openDetails(seg){
   root.querySelector('#seg-close').onclick = ()=> root.innerHTML='';
 }
 
-function drawTimeline(){
-  // Filtern nach Gruppen
-  const active = CACHED_SEGMENTS.filter(s=> SETTINGS.showGroups[s.kind]);
+function drawTimeline(reuseScroll=false){
+  // Aktive Gruppen filtern
+  const active = CACHED_SEGMENTS.filter(s => SETTINGS.showGroups[s.kind]);
 
   // Range bestimmen
-  RANGE = findRange(active);
-  const totalDays = (RANGE.end - RANGE.start);
-  const months = buildMonths(RANGE);
+  RANGE = computeDisplayRange(active);
 
-  // Header-Skala
+  // Pixel/Tag bestimmen
+  const scrollWrap = document.getElementById('tl-scroll');
+  if (SETTINGS.autoFit){
+    const innerW = Math.max(320, scrollWrap.clientWidth - 16); // etwas Luft
+    const totalDays = Math.max(1, RANGE.end - RANGE.start);
+    PPD = clamp(innerW / totalDays, PX_MIN, PX_MAX);
+  } else {
+    PPD = clamp(SETTINGS.pxPerDay, PX_MIN, PX_MAX);
+  }
+
+  // Skala & Breiten
+  const months = buildMonths(RANGE);
   renderScale(months);
 
-  // Breite setzen
-  const canvasWidth = Math.max(1, Math.ceil(totalDays * SETTINGS.pxPerDay));
+  const canvasWidth = Math.max(1, Math.ceil((RANGE.end - RANGE.start) * PPD));
   const scaleEl = document.getElementById('tl-scale');
   const lanesEl = document.getElementById('tl-lanes');
+  const canvas  = document.getElementById('tl-canvas');
+
+  // Scroll-Position merken
+  const prevScroll = reuseScroll ? scrollWrap.scrollLeft : 0;
+
   lanesEl.innerHTML = '';
   scaleEl.style.width = `${canvasWidth}px`;
-  document.getElementById('tl-canvas').style.width = `${canvasWidth}px`;
+  canvas.style.width  = `${canvasWidth}px`;
 
-  // Lanes bauen
+  // Lanes aufbauen
   const story = active.filter(s=> s.kind==='story');
-  const nscs = active.filter(s=> s.kind==='nsc');
-  const objs = active.filter(s=> s.kind==='object');
+  const nscs  = active.filter(s=> s.kind==='nsc');
+  const objs  = active.filter(s=> s.kind==='object');
 
-  lanesEl.appendChild(renderLane('Story', story, 'story'));
-  lanesEl.appendChild(renderLane('NSCs', nscs, 'nsc'));
-  lanesEl.appendChild(renderLane('Objekte', objs, 'object'));
+  lanesEl.appendChild(packAndRenderLane('Story',   story));
+  lanesEl.appendChild(packAndRenderLane('NSCs',    nscs));
+  lanesEl.appendChild(packAndRenderLane('Objekte', objs));
 
   // Heute-Marker (Kampagnendatum)
   const cur = state.campaignDate || {year:1027,month:1,day:1};
-  const curX = (avToDayNumber(cur) - RANGE.start) * SETTINGS.pxPerDay;
+  const curX = (avToDayNumber(cur) - RANGE.start) * PPD;
   const marker = document.getElementById('tl-today-marker');
-  marker.style.left = `${curX}px`;
+  marker.style.left = `${clamp(curX, 0, canvasWidth)}px`;
+
+  // Scroll-Sync Header
+  const header = document.querySelector('.tl2-header');
+  header.scrollLeft = scrollWrap.scrollLeft;
+
+  // ggf. vorherige Scrollposition behalten
+  if (reuseScroll) scrollWrap.scrollLeft = prevScroll;
 }
 
+function scrollToDay(dayNumber){
+  const wrap = document.getElementById('tl-scroll');
+  const totalW = (RANGE.end - RANGE.start)*PPD;
+  const targetX = (dayNumber - RANGE.start) * PPD - wrap.clientWidth/2;
+  wrap.scrollLeft = clamp(targetX, 0, Math.max(0, totalW - wrap.clientWidth));
+}
+
+/* =======================
+   Public Render
+   ======================= */
 export async function renderTimeline(){
   const app = document.getElementById('app');
 
-  // Daten abrufen & vorbereiten
+  // Daten holen & Segmente cachen
   const raw = await fetchAll();
   CACHED_SEGMENTS = buildSegments(raw);
 
@@ -370,7 +411,7 @@ export async function renderTimeline(){
         </div>
         <div id="tl-scroll" class="tl2-scroll">
           <div id="tl-canvas" class="tl-canvas">
-            <div id="tl-today-marker" style="position:absolute;top:0;bottom:0;width:2px;background:var(--accent2);opacity:.8"></div>
+            <div id="tl-today-marker" style="position:absolute;top:0;bottom:0;width:2px;background:var(--accent2);opacity:.9"></div>
             <div id="tl-lanes"></div>
           </div>
         </div>
@@ -379,20 +420,19 @@ export async function renderTimeline(){
   `;
 
   renderControls(document.getElementById('tl-controls'));
+
+  // Beim ersten Render direkt Auto-Fit auf das gewählte Zeitfenster
   drawTimeline();
 
   // Header mit Inhalt synchron scrollen
   const header = document.querySelector('.tl2-header');
   const scroll = document.getElementById('tl-scroll');
   header.scrollLeft = 0;
-  scroll.addEventListener('scroll', ()=>{
-    header.scrollLeft = scroll.scrollLeft;
-  });
+  scroll.addEventListener('scroll', ()=>{ header.scrollLeft = scroll.scrollLeft; });
 
-  // Bei Fenster-Resize ggf. Fit beibehalten, wenn Breite kleiner wurde
-  let resizeTimer = null;
+  // Neu zeichnen bei Resize (Auto-Fit bleibt aktiv)
+  let t=null;
   window.addEventListener('resize', ()=>{
-    clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(()=> drawTimeline(), 100);
+    clearTimeout(t); t=setTimeout(()=> drawTimeline(true), 120);
   }, { passive:true });
 }
