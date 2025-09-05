@@ -94,20 +94,23 @@ select.input{padding-right:28px}
 .rte-view{min-height:80px}
 .rte-signature{margin-top:10px;opacity:.85;font-style:italic;text-align:right}
 
-/* ===== Timeline – EIN Spur (ein einziger Track) ===== */
-.timeline2{border:1px solid var(--line);border-radius:12px;background:#120d12;overflow:hidden}
+/* ===== Timeline – EIN Spur ===== */
+.timeline2{border:1px solid var(--line);border-radius:14px;background:#120d12;overflow:hidden}
 .tl-controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-end;margin:10px 0}
-.tl-controls .group{display:flex;gap:8px;align-items:center;margin-right:auto}
+.tl-controls .group{display:flex;gap:12px;align-items:center;margin-right:auto}
 .tl-controls .sep{width:1px;height:26px;background:var(--line-soft)}
 .tl-controls label{display:inline-flex;gap:6px;align-items:center;font-size:13px;color:var(--muted)}
 .tl-controls input[type=checkbox]{accent-color:var(--accent)}
 
-/* Kopf (Monats-Skala) – kein eigener Scrollbalken, wird via transform verschoben */
-.tl2-header{overflow:hidden;border-bottom:1px solid var(--line)}
+/* Kopf (Monats-Skala) – folgt dem Track via transform */
+.tl2-header{overflow:hidden;border-bottom:1px solid var(--line);position:relative}
+.tl2-header::after{content:"";position:absolute;right:0;top:0;bottom:0;width:40px;background:linear-gradient(90deg,transparent,#120d12)}
+.tl2-header::before{content:"";position:absolute;left:0;top:0;bottom:0;width:40px;background:linear-gradient(90deg,#120d12,transparent)}
 .tl-scale{position:relative;height:46px;display:flex;align-items:stretch;will-change:transform}
-.tl-scale-cell{border-right:1px dashed var(--line-soft);padding:6px 6px;min-width:60px;flex:0 0 auto;display:flex;align-items:end;justify-content:center}
+.tl-scale-cell{border-right:1px dashed var(--line-soft);padding:4px 6px;min-width:60px;flex:0 0 auto;display:flex;align-items:end;justify-content:center}
 .tl-scale-cell:last-child{border-right:0}
-.tl-scale-month{font-size:12px;color:var(--muted);text-align:center}
+.tl-scale-month{font-size:12px;color:var(--muted);text-align:center;line-height:1.1;display:flex;flex-direction:column;gap:2px}
+.tl-scale-month .yr{font-size:11px;opacity:.8}
 
 /* eigentlicher Scroller */
 .tl2-scroll{overflow-x:auto;overflow-y:hidden}
@@ -116,24 +119,28 @@ select.input{padding-right:28px}
 
 /* Zeichenfläche */
 .tl-canvas{position:relative}
-.tl-track{position:relative;border:1px solid var(--line);border-radius:10px;margin:10px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.02))}
+.tl-track{position:relative;border:1px solid var(--line);border-radius:12px;margin:8px}
 .track-body{position:relative}
 
 /* Segmente */
 .seg{
-  position:absolute;height:16px;border-radius:8px;border:1px solid var(--line-strong);
+  position:absolute;height:18px;border-radius:10px;border:1px solid var(--line-strong);
   background:linear-gradient(90deg, rgba(194,47,47,.35), rgba(194,47,47,.18));
-  cursor:pointer;display:flex;align-items:center
+  box-shadow:0 1px 0 rgba(0,0,0,.4), inset 0 0 0 1px rgba(0,0,0,.25);
+  cursor:pointer;display:flex;align-items:center;overflow:hidden
 }
 .seg.story{background:linear-gradient(90deg, rgba(115,75,180,.35), rgba(115,75,180,.18))}
-.seg.nsc{background:linear-gradient(90deg, rgba(194,47,47,.35), rgba(194,47,47,.18))}
 .seg.object{background:linear-gradient(90deg, rgba(224,162,74,.35), rgba(224,162,74,.18))}
 .seg:hover{filter:brightness(1.08)}
-.seg-label{position:absolute;left:8px;top:-18px;font-size:11px;color:#fbe3ea;white-space:nowrap;pointer-events:none}
-.seg.compact .seg-label{top:-16px;font-size:10px}
+.seg-label{
+  position:absolute;left:8px;right:8px;top:-19px;height:18px;border-radius:8px;
+  padding:0 8px;display:flex;align-items:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  font-size:11px;color:#fbe3ea;background:#1b1218;border:1px solid var(--line-soft)
+}
+.seg.compact .seg-label{top:-17px;font-size:10px}
 
 /* Heute-Marker */
-.tl-today{position:absolute;top:0;bottom:0;width:2px;background:var(--accent2);opacity:.9}
+.tl-today{position:absolute;top:0;bottom:0;width:2px;background:var(--accent2);opacity:.95}
 
 /* Mobile */
 @media (max-width: 760px){
