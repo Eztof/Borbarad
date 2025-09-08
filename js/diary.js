@@ -77,9 +77,10 @@ async function attachTagAutocomplete(inputEl){
 
 /* ========= Daten ========= */
 async function fetchDiary(){
+  // WICHTIG: keine nicht-existierenden Spalten wie "content" abfragen!
   const { data, error } = await supabase
     .from('diary')
-    .select('id, created_at, updated_at, user_id, author_name, title, av_date, tags, signature')
+    .select('id,title,av_date,tags,created_at,updated_at,author_name,user_id')
     .order('created_at', { ascending: false });
   if (error){ console.error(error); return []; }
   return data;
@@ -147,7 +148,7 @@ function buildRte(initialHtml=''){
 }
 
 /* ========= UI ========= */
-/* Änderung: In der Übersicht KEIN Autor / Zeitstempel mehr – nur Titel */
+/* Übersicht: nur Titel, Datum (Aventurisch), Tags */
 function row(d){
   return `<tr data-id="${d.id}" class="diary-row">
     <td>
@@ -287,7 +288,6 @@ function showAddEditor(){
       const title = root.querySelector('#di-title').value.trim();
       if (!title){ alert('Titel fehlt'); return; }
       const av_date = readDatePickerAv('di-date');
-      // Validierung (verhindert NaN/0)
       if (!av_date?.year || !av_date?.month || !av_date?.day){
         alert('Bitte das aventurische Datum vollständig angeben.'); return;
       }
