@@ -140,4 +140,37 @@ select.input{padding-right:28px}
   .row{grid-template-columns:1fr}
   .grid{grid-template-columns:1fr}
   .cal-grid{grid-template-columns:repeat(3,1fr)}
+
+  /* Make top bar layout wrap on small screens to accommodate toggle button */
+  .topbar{flex-wrap:wrap;gap:8px}
+
+  /* Show the menu toggle button only on mobile */
+  .menu-toggle{display:block}
+
+  /* Hide the navigation and authbox until the menu is toggled */
+  .menu{display:none;flex-direction:column;position:absolute;top:100%;left:0;right:0;background:#0e0a0f;border-top:1px solid var(--line);box-shadow:0 2px 4px rgba(0,0,0,.4);z-index:9}
+  .authbox{display:none}
+
+  /* When the menu is open, display it and the authbox */
+  .menu.open{display:flex}
+  .menu.open + .authbox{display:flex;flex-direction:column;padding:8px 16px;border-top:1px solid var(--line-soft);background:#0e0a0f;position:absolute;top:100%;left:0;right:0;z-index:8}
+  .menu.open + .authbox > *{margin:4px 0}
+
+  /* Style the mobile navigation links */
+  .menu a{margin:4px 0;padding:10px 16px;border-bottom:1px solid var(--line-soft)}
+
+  /* Force hero cards to occupy full width on mobile */
+  .hero-list{grid-template-columns:1fr}
+}
+
+/* Mobile navigation default styles (hidden on large screens) */
+.menu-toggle{
+  display:none;
+  background:none;
+  border:0;
+  color:var(--muted);
+  font-size:24px;
+  line-height:1;
+  cursor:pointer;
+  padding:6px 10px;
 }
