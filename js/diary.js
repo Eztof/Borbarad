@@ -1,279 +1,417 @@
-// js/diary.js
 import { supabase } from './supabaseClient.js';
 import { state } from './state.js';
-import { section, modal, formRow, empty } from './components.js';
-import { htmlesc, formatAvDate, datePickerAv, readDatePickerAv } from './utils.js';
+import { section, modal, formRow, empty, avDateInputs } from './components.js';
+import { formatAvDate, readDatePickerAv, htmlesc } from './utils.js';
 
-/* ===================== RTE (einfach, stabil) ===================== */
-function exec(cmd, value = null){ document.execCommand(cmd, false, value); }
-function makeButton(label, cmd, value=null, title=''){
-  const b = document.createElement('button');
-  b.type = 'button';
-  b.className = 'btn secondary';
-  b.textContent = label;
-  if (title) b.title = title;
-  b.addEventListener('click', ()=> exec(cmd, value));
-  return b;
+/* ========= Tag Helpers ========= */
+let TAG_CACHE = null;
+function normalizeTag(t){ return String(t||'').toLowerCase().trim().replace(/\s+/g,' '); }
+function parseTags(text){ return Array.from(new Set(String(text||'').split(',').map(normalizeTag).filter(Boolean))); }
+function joinTags(arr){ return arr.join(', '); }
+
+async function loadAllTags(){
+  if (TAG_CACHE) return TAG_CACHE;
+  const { data } = await supabase.from('tags').select('name').order('name',{ascending:true});
+  TAG_CACHE = (data||[]).map(r=>r.name);
+  return TAG_CACHE;
+}
+async function upsertTagsToGlobal(tagsArr){
+  if (!tagsArr?.length) return;
+  const rows = tagsArr.map(name => ({ name }));
+  const { error } = await supabase.from('tags').upsert(rows, { onConflict: 'name' });
+  if (error) console.warn('tags upsert error:', error);
+  TAG_CACHE = null;
+  await loadAllTags();
+}
+async function attachTagAutocomplete(inputEl){
+  await loadAllTags();
+  const wrap = document.createElement('div');
+  wrap.className = 'suggest-wrap';
+  inputEl.parentNode.insertBefore(wrap, inputEl);
+  wrap.appendChild(inputEl);
+  const sug = document.createElement('div');
+  sug.className = 'suggest';
+  sug.style.display = 'none';
+  wrap.appendChild(sug);
+
+  function currentToken(){
+    const val = inputEl.value;
+    const parts = val.split(',');
+    const last = parts[parts.length-1] ?? '';
+    return normalizeTag(last);
+  }
+  function existingSet(){ return new Set(parseTags(inputEl.value)); }
+  function close(){ sug.style.display='none'; sug.innerHTML=''; }
+  function openWith(list){
+    if (!list.length){ close(); return; }
+    sug.innerHTML = list.slice(0,8).map(t=>`<div class="suggest-item" data-v="${htmlesc(t)}">${htmlesc(t)}</div>`).join('');
+    sug.style.display = 'block';
+    sug.querySelectorAll('.suggest-item').forEach(it=>{
+      it.onclick = ()=>{
+        const cur = existingSet();
+        cur.add(it.getAttribute('data-v'));
+        inputEl.value = joinTags(Array.from(cur)) + ', ';
+        close(); inputEl.focus();
+      };
+    });
+  }
+
+  inputEl.addEventListener('input', ()=>{
+    const token = currentToken();
+    const exist = existingSet();
+    if (!token){ close(); return; }
+    const list = TAG_CACHE.filter(t => t.includes(token) && !exist.has(t));
+    openWith(list);
+  });
+  inputEl.addEventListener('keydown', (e)=>{
+    if (e.key === 'Escape'){ close(); }
+    if (e.key === 'Enter'){
+      if (sug.style.display === 'block'){
+        const first = sug.querySelector('.suggest-item');
+        if (first){ first.click(); e.preventDefault(); }
+      }
+    }
+  });
+  document.addEventListener('click', (e)=>{ if (!wrap.contains(e.target)) close(); });
 }
 
-function buildRTE(container, initialHTML=''){
-  const toolbar = document.createElement('div');
-  toolbar.className = 'rte-toolbar';
-
-  // Buttons
-  toolbar.appendChild(makeButton('B', 'bold', null, 'Fett'));
-  toolbar.appendChild(makeButton('I', 'italic', null, 'Kursiv'));
-  toolbar.appendChild(makeButton('U', 'underline', null, 'Unterstrichen'));
-  toolbar.appendChild(makeButton('H2', 'formatBlock', 'H2', 'Zwischenüberschrift'));
-  toolbar.appendChild(makeButton('•', 'insertUnorderedList', null, 'Aufzählung'));
-  toolbar.appendChild(makeButton('1.', 'insertOrderedList', null, 'Nummerierung'));
-  toolbar.appendChild(makeButton('—', 'removeFormat', null, 'Formatierung entfernen'));
-
-  const editor = document.createElement('div');
-  editor.className = 'rte-editor';
-  editor.contentEditable = 'true';
-  editor.innerHTML = initialHTML || '';
-
-  container.appendChild(toolbar);
-  container.appendChild(editor);
-
-  return {
-    getHTML: ()=> editor.innerHTML,
-    setHTML: (html)=> { editor.innerHTML = html || ''; },
-    el: editor
-  };
-}
-
-/* ===================== Daten laden & speichern ===================== */
+/* ========= Daten ========= */
 async function fetchDiary(){
   const { data, error } = await supabase
     .from('diary')
-    .select('id, user_id, title, content, av_date, tags, signature, created_at, updated_at')
+    .select('id, created_at, updated_at, user_id, author_name, title, av_date, tags, signature')
     .order('created_at', { ascending: false });
   if (error){ console.error(error); return []; }
-  return data || [];
+  return data;
 }
-
-async function insertDiary(payload){
-  const { data, error } = await supabase.from('diary').insert(payload).select('id').single();
-  if (error) throw error;
+async function getDiaryById(id){
+  const { data, error } = await supabase
+    .from('diary')
+    .select('*')
+    .eq('id', id)
+    .single();
+  if (error){ throw error; }
   return data;
 }
 
-async function updateDiary(id, payload){
-  const { error } = await supabase.from('diary').update(payload).eq('id', id);
-  if (error) throw error;
-}
-
-async function deleteDiary(id){
-  const { error } = await supabase.from('diary').delete().eq('id', id);
-  if (error) throw error;
-}
-
-/* ===================== UI – List/Row ===================== */
-
-function chipTag(t){ return `<span class="chip diary">${htmlesc(t)}</span>`; }
-
-function diaryRow(entry){
-  const tags = (entry.tags||'').split(',').map(s=>s.trim()).filter(Boolean);
-  const av = entry.av_date ? `<span class="tag">${formatAvDate(entry.av_date)}</span>` : '';
-  return `
-    <tr data-id="${entry.id}" class="diary-row">
-      <td><strong>${htmlesc(entry.title||'Unbenannt')}</strong></td>
-      <td>${av}</td>
-      <td>${tags.map(chipTag).join(' ')}</td>
-      <td style="text-align:right;white-space:nowrap">
-        <button class="btn" data-view="${entry.id}">Lesen</button>
-        ${state.user?.id === entry.user_id ? `<button class="btn secondary" data-edit="${entry.id}" style="margin-left:6px">Bearbeiten</button>` : ''}
-        ${state.user?.id === entry.user_id ? `<button class="btn warn" data-del="${entry.id}" style="margin-left:6px">Löschen</button>` : ''}
-      </td>
-    </tr>
+/* ========= RTE ========= */
+function applyCmd(cmd, val=null){ document.execCommand(cmd, false, val); }
+function buildRte(initialHtml=''){
+  const toolbar = document.createElement('div');
+  toolbar.className = 'rte-toolbar';
+  toolbar.innerHTML = `
+    <button type="button" class="btn secondary" data-cmd="bold"><b>B</b></button>
+    <button type="button" class="btn secondary" data-cmd="italic"><i>I</i></button>
+    <button type="button" class="btn secondary" data-cmd="underline"><u>U</u></button>
+    <select id="rte-size" aria-label="Schriftgröße">
+      <option value="">Größe</option>
+      <option value="2">Klein</option>
+      <option value="3">Normal</option>
+      <option value="4">Groß</option>
+      <option value="5">Sehr groß</option>
+      <option value="6">Riesig</option>
+    </select>
+    <select id="rte-font" aria-label="Schriftart">
+      <option value="">Schriftart</option>
+      <option value="system-ui, Segoe UI, Roboto, Arial">System</option>
+      <option value="Georgia, Times, serif">Serif</option>
+      <option value="Arial, Helvetica, sans-serif">Sans</option>
+      <option value="Courier New, Consolas, monospace">Monospace</option>
+    </select>
+    <button type="button" class="btn secondary" id="rte-clear" title="Format entfernen">Format entfernen</button>
+    <button type="button" class="btn secondary" id="rte-ul" title="Aufzählungsliste">• Liste</button>
+    <button type="button" class="btn secondary" id="rte-ol" title="Nummerierte Liste">1. Liste</button>
   `;
+  const editor = document.createElement('div');
+  editor.className = 'rte-editor';
+  editor.setAttribute('contenteditable','true');
+  editor.innerHTML = initialHtml || '';
+
+  // bind
+  toolbar.querySelectorAll('button[data-cmd]').forEach(btn=>{
+    btn.addEventListener('click', ()=> applyCmd(btn.dataset.cmd));
+  });
+  toolbar.querySelector('#rte-size').addEventListener('change', (e)=>{
+    const v = e.target.value;
+    if (v) applyCmd('fontSize', v);
+  });
+  toolbar.querySelector('#rte-font').addEventListener('change', (e)=>{
+    const v = e.target.value;
+    if (v) applyCmd('fontName', v);
+  });
+  toolbar.querySelector('#rte-clear').addEventListener('click', ()=> applyCmd('removeFormat'));
+  toolbar.querySelector('#rte-ul').addEventListener('click', ()=> applyCmd('insertUnorderedList'));
+  toolbar.querySelector('#rte-ol').addEventListener('click', ()=> applyCmd('insertOrderedList'));
+
+  return { toolbar, editor, getHtml:()=>editor.innerHTML, setHtml:(h)=> editor.innerHTML=h };
 }
 
-/* ===================== Render Hauptseite ===================== */
+/* ========= UI ========= */
+/* Änderung: In der Übersicht KEIN Autor / Zeitstempel mehr – nur Titel */
+function row(d){
+  return `<tr data-id="${d.id}" class="diary-row">
+    <td>
+      <div class="diary-title">${htmlesc(d.title)}</div>
+    </td>
+    <td>${formatAvDate(d.av_date)}</td>
+    <td class="small">${htmlesc(d.tags||'')}</td>
+  </tr>`;
+}
 
 export async function renderDiary(){
   const app = document.getElementById('app');
-  const items = await fetchDiary();
+  let items = await fetchDiary();
 
   app.innerHTML = `
     <div class="card">
-      ${section('Tagebuch', `<button class="btn" id="btn-new">+ Eintrag</button>`)}
+      ${section('Tagebuch', `
+        <div style="display:flex;gap:8px">
+          <input class="input" placeholder="Suchen… (Titel/Tags/Autor)" id="diary-q" style="width:280px"/>
+          <button class="btn" id="diary-add">+ Eintrag</button>
+        </div>
+      `)}
+
       ${items.length ? `
         <div class="card">
           <table class="table">
-            <thead>
-              <tr>
-                <th>Titel</th>
-                <th>Datum (BF)</th>
-                <th>Tags</th>
-                <th style="text-align:right">Aktionen</th>
-              </tr>
-            </thead>
-            <tbody id="diary-tbody">
-              ${items.map(diaryRow).join('')}
-            </tbody>
+            <thead><tr><th>Eintrag</th><th>Datum (Aventurisch)</th><th>Tags</th></tr></thead>
+            <tbody id="diary-tbody">${items.map(row).join('')}</tbody>
           </table>
         </div>
       ` : empty('Noch keine Tagebuch-Einträge.')}
     </div>
   `;
 
-  // Neuer Eintrag
-  const newBtn = document.getElementById('btn-new');
-  if (newBtn) newBtn.onclick = ()=> showNewEntry();
-
-  // Actions
+  const q = document.getElementById('diary-q');
   const tbody = document.getElementById('diary-tbody');
-  if (!tbody) return;
+  if (q && tbody){
+    q.addEventListener('input', ()=>{
+      const v = q.value.toLowerCase();
+      const filtered = items.filter(d =>
+        (d.title||'').toLowerCase().includes(v) ||
+        (d.tags||'').toLowerCase().includes(v) ||
+        (d.author_name||'').toLowerCase().includes(v)
+      );
+      tbody.innerHTML = filtered.map(row).join('');
+    });
 
-  tbody.addEventListener('click', (e)=>{
-    const idView = e.target.closest('button[data-view]')?.getAttribute('data-view');
-    const idEdit = e.target.closest('button[data-edit]')?.getAttribute('data-edit');
-    const idDel  = e.target.closest('button[data-del]')?.getAttribute('data-del');
-    if (idView){
-      const entry = items.find(x=> x.id === idView);
-      if (entry) showViewEntry(entry);
-    } else if (idEdit){
-      const entry = items.find(x=> x.id === idEdit);
-      if (entry) showEditEntry(entry);
-    } else if (idDel){
-      const entry = items.find(x=> x.id === idDel);
-      if (entry) confirmDeleteEntry(entry);
-    }
-  });
+    tbody.addEventListener('click', async (e)=>{
+      const tr = e.target.closest('tr.diary-row');
+      if (!tr) return;
+      const id = tr.dataset.id;
+      const entry = await getDiaryById(id);
+      showDiaryEntry(entry);
+    });
+  }
+
+  document.getElementById('diary-add').onclick = ()=> showAddEditor();
 }
 
-/* ===================== Modals ===================== */
+/* ========= Anzeigen / Lesen ========= */
+function showDiaryEntry(entry){
+  const isAuthor = state.user?.id && entry.user_id === state.user.id;
+  const created = new Date(entry.created_at).toLocaleString('de-DE');
+  const updated = entry.updated_at ? new Date(entry.updated_at).toLocaleString('de-DE') : null;
 
-function showNewEntry(){
   const root = modal(`
-    <h3>Neuer Tagebuch-Eintrag</h3>
-    ${formRow('Titel', '<input class="input" id="d-title" />')}
-    <div class="row">
-      <div class="card" style="margin:0">
-        <div class="label">Datum (aventurisch)</div>
-        ${datePickerAv('d-date', state.campaignDate)}
+    <div>
+      <h3 style="margin:0 0 6px 0">${htmlesc(entry.title)}</h3>
+      <div class="small" style="margin-bottom:10px">von ${htmlesc(entry.author_name||'Unbekannt')} • ${created}${updated?` • aktualisiert: ${updated}`:''} • ${formatAvDate(entry.av_date)}</div>
+      <div class="card">
+        <div class="rte-view" id="rte-view"></div>
+        ${entry.signature ? `<div class="rte-signature">— ${htmlesc(entry.signature)}</div>` : ''}
       </div>
-      ${formRow('Tags (Komma-getrennt)', '<input class="input" id="d-tags" placeholder="z.B. reise, kampf, brief" />')}
+      ${entry.tags ? `<div class="tags" style="margin-top:8px">${entry.tags.split(',').map(t=>`<span class="tag">${htmlesc(t.trim())}</span>`).join('')}</div>`:''}
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+        ${isAuthor ? '<button class="btn warn" id="dlt">Löschen</button><button class="btn" id="edt">Bearbeiten</button>' : ''}
+        <button class="btn secondary" id="cls">Schließen</button>
+      </div>
     </div>
-    ${formRow('Signatur (optional)', '<input class="input" id="d-sign" placeholder="gez. ..." />')}
-    <div id="rte-wrap"></div>
-    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
-      <button class="btn secondary" id="d-cancel">Abbrechen</button>
-      <button class="btn" id="d-save">Speichern</button>
+  `);
+  root.querySelector('#rte-view').innerHTML = entry.body_html || '';
+
+  root.querySelector('#cls').onclick = ()=> root.innerHTML='';
+  if (isAuthor){
+    root.querySelector('#edt').onclick = ()=> { root.innerHTML=''; showEditEditor(entry); };
+    root.querySelector('#dlt').onclick = async ()=>{
+      if (!confirm('Eintrag wirklich löschen?')) return;
+      const { error } = await supabase.from('diary').delete().eq('id', entry.id);
+      if (error){ alert(error.message || error.details || 'Unbekannter Fehler'); return; }
+      root.innerHTML='';
+      location.hash = '#/diary';
+    };
+  }
+}
+
+/* ========= Neuer Eintrag ========= */
+function showAddEditor(){
+  const d = state.campaignDate;
+  const root = modal(`
+    <div>
+      <div class="toolbar" style="margin-bottom:10px">
+        <h3 style="margin:0">✒️ Neuer Eintrag</h3>
+        <div style="display:flex;gap:8px">
+          <button class="btn secondary" id="di-cancel">Abbrechen</button>
+          <button class="btn" id="di-save">Speichern</button>
+        </div>
+      </div>
+
+      <div class="card" style="display:grid;gap:12px">
+        <div class="row">
+          ${formRow('Titel', '<input class="input" id="di-title" placeholder="Titel des Eintrags" />')}
+          ${avDateInputs('di-date', d, 'Datum (Aventurisch)')}
+        </div>
+        <div class="row">
+          ${formRow('Tags (Komma-getrennt)', '<input class="input" id="di-tags" placeholder="z.B. reise, kampf, artefakt" />')}
+          ${formRow('Signatur (optional)', '<input class="input" id="di-sign" placeholder="z.B. Gez. Alrik" />')}
+        </div>
+      </div>
+
+      <div style="margin-top:10px">
+        <div class="rte-toolbar" id="rte-toolbar"></div>
+        <div class="rte-editor" id="rte-editor" contenteditable="true" placeholder="Schreibe deinen Eintrag…"></div>
+      </div>
+
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+        <button class="btn secondary" id="di-cancel-bottom">Abbrechen</button>
+        <button class="btn" id="di-save-bottom">Speichern</button>
+      </div>
     </div>
   `);
 
-  const rte = buildRTE(root.querySelector('#rte-wrap'), '');
+  attachTagAutocomplete(root.querySelector('#di-tags'));
+  const { getHtml } = buildRTEHost(root);
 
-  root.querySelector('#d-cancel').onclick = ()=> root.innerHTML='';
-  root.querySelector('#d-save').onclick = async ()=>{
+  const doSave = async ()=>{
     try{
-      const title = document.getElementById('d-title').value.trim();
-      if (!title){ alert('Titel fehlt.'); return; }
+      const title = root.querySelector('#di-title').value.trim();
+      if (!title){ alert('Titel fehlt'); return; }
+      const av_date = readDatePickerAv('di-date');
+      // Validierung (verhindert NaN/0)
+      if (!av_date?.year || !av_date?.month || !av_date?.day){
+        alert('Bitte das aventurische Datum vollständig angeben.'); return;
+      }
+      const signature = root.querySelector('#di-sign').value.trim();
+      const tagsArr = parseTags(root.querySelector('#di-tags').value);
+      const tags = joinTags(tagsArr);
+      const body_html = getHtml().trim();
+      const author_name = state.user?.user_metadata?.username || state.user?.email || 'Unbekannt';
+
       const payload = {
-        title,
-        content: rte.getHTML(),
-        av_date: readDatePickerAv('d-date'),
-        tags: String(document.getElementById('d-tags').value || '').trim(),
-        signature: String(document.getElementById('d-sign').value || '').trim(),
-        user_id: state.user?.id || null,
-        author_name: state.user?.user_metadata?.username || state.user?.email || 'Unbekannt'
+        title, body_html, av_date, signature,
+        tags, user_id: state.user?.id || null, author_name,
+        updated_at: new Date().toISOString()
       };
-      await insertDiary(payload);
+
+      const { error } = await supabase.from('diary').insert(payload);
+      if (error){
+        console.error('Diary insert failed:', { error, payload });
+        alert([error.message, error.details, error.hint].filter(Boolean).join('\n') || 'Speichern fehlgeschlagen.');
+        return;
+      }
+
+      await upsertTagsToGlobal(tagsArr);
       root.innerHTML='';
-      renderDiary();
+      location.hash = '#/diary';
     }catch(err){
-      console.error('Diary insert failed:', err);
-      alert(err.message);
+      console.error('Diary insert exception:', err);
+      alert(err?.message || String(err));
     }
   };
+
+  root.querySelector('#di-save').onclick = doSave;
+  root.querySelector('#di-save-bottom').onclick = doSave;
+  const close = ()=> root.innerHTML='';
+  root.querySelector('#di-cancel').onclick = close;
+  root.querySelector('#di-cancel-bottom').onclick = close;
 }
 
-function showEditEntry(entry){
+/* ========= Eintrag bearbeiten ========= */
+function showEditEditor(entry){
   const root = modal(`
-    <h3>Eintrag bearbeiten</h3>
-    ${formRow('Titel', `<input class="input" id="e-title" value="${htmlesc(entry.title||'')}" />`)}
-    <div class="row">
-      <div class="card" style="margin:0">
-        <div class="label">Datum (aventurisch)</div>
-        ${datePickerAv('e-date', entry.av_date || state.campaignDate)}
+    <div>
+      <div class="toolbar" style="margin-bottom:10px">
+        <h3 style="margin:0">✎ Eintrag bearbeiten</h3>
+        <div style="display:flex;gap:8px">
+          <button class="btn secondary" id="di-cancel">Abbrechen</button>
+          <button class="btn" id="di-save">Speichern</button>
+        </div>
       </div>
-      ${formRow('Tags (Komma-getrennt)', `<input class="input" id="e-tags" value="${htmlesc(entry.tags||'')}" />`)}
-    </div>
-    ${formRow('Signatur (optional)', `<input class="input" id="e-sign" value="${htmlesc(entry.signature||'')}" />`)}
-    <div id="rte-wrap"></div>
-    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
-      <button class="btn secondary" id="e-cancel">Abbrechen</button>
-      <button class="btn" id="e-save">Speichern</button>
+
+      <div class="card" style="display:grid;gap:12px">
+        <div class="row">
+          ${formRow('Titel', `<input class="input" id="di-title" value="${htmlesc(entry.title)}" />`)}
+          ${avDateInputs('di-date', entry.av_date, 'Datum (Aventurisch)')}
+        </div>
+        <div class="row">
+          ${formRow('Tags (Komma-getrennt)', `<input class="input" id="di-tags" value="${htmlesc(entry.tags||'')}" />`)}
+          ${formRow('Signatur (optional)', `<input class="input" id="di-sign" value="${htmlesc(entry.signature||'')}" />`)}
+        </div>
+      </div>
+
+      <div style="margin-top:10px">
+        <div class="rte-toolbar" id="rte-toolbar"></div>
+        <div class="rte-editor" id="rte-editor" contenteditable="true"></div>
+      </div>
+
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+        <button class="btn secondary" id="di-cancel-bottom">Abbrechen</button>
+        <button class="btn" id="di-save-bottom">Speichern</button>
+      </div>
     </div>
   `);
 
-  const rte = buildRTE(root.querySelector('#rte-wrap'), entry.content || '');
+  attachTagAutocomplete(root.querySelector('#di-tags'));
+  const { getHtml, setHtml } = buildRTEHost(root);
+  setHtml(entry.body_html || '');
 
-  root.querySelector('#e-cancel').onclick = ()=> root.innerHTML='';
-  root.querySelector('#e-save').onclick = async ()=>{
+  const doSave = async ()=>{
     try{
+      const title = root.querySelector('#di-title').value.trim();
+      if (!title){ alert('Titel fehlt'); return; }
+      const av_date = readDatePickerAv('di-date');
+      if (!av_date?.year || !av_date?.month || !av_date?.day){
+        alert('Bitte das aventurische Datum vollständig angeben.'); return;
+      }
+      const signature = root.querySelector('#di-sign').value.trim();
+      const tagsArr = parseTags(root.querySelector('#di-tags').value);
+      const tags = joinTags(tagsArr);
+      const body_html = getHtml().trim();
+
       const payload = {
-        title: document.getElementById('e-title').value.trim(),
-        content: rte.getHTML(),
-        av_date: readDatePickerAv('e-date'),
-        tags: String(document.getElementById('e-tags').value || '').trim(),
-        signature: String(document.getElementById('e-sign').value || '').trim()
+        title, body_html, av_date, signature, tags,
+        updated_at: new Date().toISOString()
       };
-      if (!payload.title){ alert('Titel fehlt.'); return; }
-      await updateDiary(entry.id, payload);
+
+      const { error } = await supabase.from('diary').update(payload).eq('id', entry.id);
+      if (error){
+        console.error('Diary update failed:', { error, payload });
+        alert([error.message, error.details, error.hint].filter(Boolean).join('\n') || 'Speichern fehlgeschlagen.');
+        return;
+      }
+
+      await upsertTagsToGlobal(tagsArr);
       root.innerHTML='';
-      renderDiary();
+      location.hash = '#/diary';
     }catch(err){
-      console.error('Diary update failed:', err);
-      alert(err.message);
+      console.error('Diary update exception:', err);
+      alert(err?.message || String(err));
     }
   };
+
+  root.querySelector('#di-save').onclick = doSave;
+  root.querySelector('#di-save-bottom').onclick = doSave;
+  const close = ()=> root.innerHTML='';
+  root.querySelector('#di-cancel').onclick = close;
+  root.querySelector('#di-cancel-bottom').onclick = close;
 }
 
-function showViewEntry(entry){
-  const root = modal(`
-    <div class="daylist">
-      <h3 style="margin:0 0 6px 0">${htmlesc(entry.title||'')}</h3>
-      ${entry.av_date ? `<div class="small" style="margin-bottom:8px">${formatAvDate(entry.av_date)}</div>` : ''}
-      <div class="rte-view">${entry.content || ''}</div>
-      ${entry.signature ? `<div class="rte-signature">— ${htmlesc(entry.signature)}</div>` : ''}
-      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
-        ${state.user?.id === entry.user_id ? `<button class="btn" id="v-edit">Bearbeiten</button>` : ''}
-        ${state.user?.id === entry.user_id ? `<button class="btn warn" id="v-del">Löschen</button>` : ''}
-        <button class="btn secondary" id="v-close">Schließen</button>
-      </div>
-    </div>
-  `);
-
-  root.querySelector('#v-close').onclick = ()=> root.innerHTML='';
-  const be = root.querySelector('#v-edit');
-  const bd = root.querySelector('#v-del');
-  if (be) be.onclick = ()=> { root.innerHTML=''; showEditEntry(entry); };
-  if (bd) bd.onclick = ()=> { root.innerHTML=''; confirmDeleteEntry(entry); };
-}
-
-function confirmDeleteEntry(entry){
-  const root = modal(`
-    <h3>Löschen bestätigen</h3>
-    <p class="small">Möchtest du den Eintrag <strong>${htmlesc(entry.title||'')}</strong> wirklich löschen?</p>
-    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
-      <button class="btn secondary" id="x-cancel">Abbrechen</button>
-      <button class="btn warn" id="x-ok">Löschen</button>
-    </div>
-  `);
-  root.querySelector('#x-cancel').onclick = ()=> root.innerHTML='';
-  root.querySelector('#x-ok').onclick = async ()=>{
-    try{
-      await deleteDiary(entry.id);
-      root.innerHTML='';
-      renderDiary();
-    }catch(err){
-      console.error('Diary delete failed:', err);
-      alert(err.message);
-    }
-  };
+/* ========= Hilfsfunktion: RTE in Modal einbauen ========= */
+function buildRTEHost(root){
+  const toolbarHost = root.querySelector('#rte-toolbar');
+  const editorHost = root.querySelector('#rte-editor');
+  const { toolbar, editor, getHtml, setHtml } = buildRte(editorHost.innerHTML || '');
+  toolbarHost.replaceWith(toolbar);
+  editorHost.replaceWith(editor);
+  return { toolbar, editor, getHtml, setHtml };
 }
