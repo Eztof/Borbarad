@@ -2,281 +2,278 @@
 import { supabase } from './supabaseClient.js';
 import { state } from './state.js';
 import { section, modal, formRow, empty } from './components.js';
-import { formatAvDate, avDateInputs, readDatePickerAv, htmlesc } from './utils.js';
+import { htmlesc, formatAvDate, datePickerAv, readDatePickerAv } from './utils.js';
 
-/* =========================
-   Mini-Rich-Text-Editor
-   ========================= */
-function buildRte(container, initialHtml = '') {
+/* ===================== RTE (einfach, stabil) ===================== */
+function exec(cmd, value = null){ document.execCommand(cmd, false, value); }
+function makeButton(label, cmd, value=null, title=''){
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'btn secondary';
+  b.textContent = label;
+  if (title) b.title = title;
+  b.addEventListener('click', ()=> exec(cmd, value));
+  return b;
+}
+
+function buildRTE(container, initialHTML=''){
   const toolbar = document.createElement('div');
   toolbar.className = 'rte-toolbar';
-  toolbar.innerHTML = `
-    <button class="btn secondary" data-cmd="bold"><b>B</b></button>
-    <button class="btn secondary" data-cmd="italic"><i>I</i></button>
-    <button class="btn secondary" data-cmd="underline"><u>U</u></button>
-    <button class="btn secondary" data-cmd="formatBlock" data-val="h2">H2</button>
-    <button class="btn secondary" data-cmd="insertUnorderedList">• Liste</button>
-    <button class="btn secondary" data-cmd="insertOrderedList">1. Liste</button>
-    <button class="btn secondary" data-cmd="formatBlock" data-val="blockquote">Zitat</button>
-    <button class="btn secondary" data-link>Link</button>
-    <button class="btn secondary" data-undo>↶</button>
-    <button class="btn secondary" data-redo>↷</button>
-    <button class="btn warn" data-clear>Leeren</button>
-  `;
+
+  // Buttons
+  toolbar.appendChild(makeButton('B', 'bold', null, 'Fett'));
+  toolbar.appendChild(makeButton('I', 'italic', null, 'Kursiv'));
+  toolbar.appendChild(makeButton('U', 'underline', null, 'Unterstrichen'));
+  toolbar.appendChild(makeButton('H2', 'formatBlock', 'H2', 'Zwischenüberschrift'));
+  toolbar.appendChild(makeButton('•', 'insertUnorderedList', null, 'Aufzählung'));
+  toolbar.appendChild(makeButton('1.', 'insertOrderedList', null, 'Nummerierung'));
+  toolbar.appendChild(makeButton('—', 'removeFormat', null, 'Formatierung entfernen'));
 
   const editor = document.createElement('div');
   editor.className = 'rte-editor';
   editor.contentEditable = 'true';
-  editor.innerHTML = initialHtml || '';
+  editor.innerHTML = initialHTML || '';
 
   container.appendChild(toolbar);
   container.appendChild(editor);
 
-  function exec(cmd, val) {
-    document.execCommand(cmd, false, val || null);
-    editor.focus();
-  }
-
-  toolbar.addEventListener('click', (e) => {
-    const b = e.target.closest('button');
-    if (!b) return;
-    if (b.dataset.cmd) {
-      const cmd = b.dataset.cmd;
-      const val = b.dataset.val || null;
-      exec(cmd, val);
-    } else if (b.hasAttribute('data-link')) {
-      const url = prompt('URL eingeben:');
-      if (url) exec('createLink', url);
-    } else if (b.hasAttribute('data-undo')) {
-      exec('undo');
-    } else if (b.hasAttribute('data-redo')) {
-      exec('redo');
-    } else if (b.hasAttribute('data-clear')) {
-      editor.innerHTML = '';
-    }
-  });
-
   return {
-    root: container,
-    getHtml: () => editor.innerHTML.trim(),
-    setHtml: (html) => { editor.innerHTML = html || ''; }
+    getHTML: ()=> editor.innerHTML,
+    setHTML: (html)=> { editor.innerHTML = html || ''; },
+    el: editor
   };
 }
 
-/* =========================
-   Daten-Laden
-   ========================= */
-async function fetchDiary() {
-  // Übersicht: ohne Autor/Zeit in der Anzeige – trotzdem laden wir sie,
-  // damit Edit/Delete-Berechtigungen funktionieren.
+/* ===================== Daten laden & speichern ===================== */
+async function fetchDiary(){
   const { data, error } = await supabase
     .from('diary')
-    .select('id, title, av_date, tags, author_name, user_id, created_at, updated_at, signature')
+    .select('id, user_id, title, content, av_date, tags, signature, created_at, updated_at')
     .order('created_at', { ascending: false });
-  if (error) {
-    console.error(error);
-    return [];
-  }
+  if (error){ console.error(error); return []; }
   return data || [];
 }
 
-async function fetchEntry(id) {
-  const { data, error } = await supabase
-    .from('diary')
-    .select('id, title, av_date, tags, content_html, signature, author_name, user_id, created_at, updated_at')
-    .eq('id', id)
-    .maybeSingle();
+async function insertDiary(payload){
+  const { data, error } = await supabase.from('diary').insert(payload).select('id').single();
   if (error) throw error;
   return data;
 }
 
-/* =========================
-   UI-Helfer
-   ========================= */
-function row(entry) {
+async function updateDiary(id, payload){
+  const { error } = await supabase.from('diary').update(payload).eq('id', id);
+  if (error) throw error;
+}
+
+async function deleteDiary(id){
+  const { error } = await supabase.from('diary').delete().eq('id', id);
+  if (error) throw error;
+}
+
+/* ===================== UI – List/Row ===================== */
+
+function chipTag(t){ return `<span class="chip diary">${htmlesc(t)}</span>`; }
+
+function diaryRow(entry){
+  const tags = (entry.tags||'').split(',').map(s=>s.trim()).filter(Boolean);
+  const av = entry.av_date ? `<span class="tag">${formatAvDate(entry.av_date)}</span>` : '';
   return `
-    <tr data-id="${entry.id}">
-      <td><strong>${htmlesc(entry.title || '')}</strong></td>
-      <td>${entry.av_date ? formatAvDate(entry.av_date) : '—'}</td>
-      <td class="small">${htmlesc(entry.tags || '')}</td>
+    <tr data-id="${entry.id}" class="diary-row">
+      <td><strong>${htmlesc(entry.title||'Unbenannt')}</strong></td>
+      <td>${av}</td>
+      <td>${tags.map(chipTag).join(' ')}</td>
       <td style="text-align:right;white-space:nowrap">
-        <button class="btn secondary" data-view="${entry.id}">Lesen</button>
-        <button class="btn" data-edit="${entry.id}" style="margin-left:6px">Bearbeiten</button>
-        ${canDelete(entry) ? `<button class="btn warn" data-del="${entry.id}" style="margin-left:6px">Löschen</button>` : ''}
+        <button class="btn" data-view="${entry.id}">Lesen</button>
+        ${state.user?.id === entry.user_id ? `<button class="btn secondary" data-edit="${entry.id}" style="margin-left:6px">Bearbeiten</button>` : ''}
+        ${state.user?.id === entry.user_id ? `<button class="btn warn" data-del="${entry.id}" style="margin-left:6px">Löschen</button>` : ''}
       </td>
     </tr>
   `;
 }
 
-function canDelete(entry) {
-  const uid = state.user?.id;
-  return uid && entry?.user_id && uid === entry.user_id;
-}
+/* ===================== Render Hauptseite ===================== */
 
-/* =========================
-   Render-Hauptfunktion
-   ========================= */
-export async function renderDiary() {
+export async function renderDiary(){
   const app = document.getElementById('app');
-  const entries = await fetchDiary();
+  const items = await fetchDiary();
 
   app.innerHTML = `
     <div class="card">
-      ${section('Tagebuch', `<button class="btn" id="btn-new">Neuer Eintrag</button>`)}
-      <div class="card">
-        ${entries.length ? `
+      ${section('Tagebuch', `<button class="btn" id="btn-new">+ Eintrag</button>`)}
+      ${items.length ? `
+        <div class="card">
           <table class="table">
             <thead>
               <tr>
                 <th>Titel</th>
-                <th>Datum</th>
+                <th>Datum (BF)</th>
                 <th>Tags</th>
-                <th style="width:260px;text-align:right">Aktionen</th>
+                <th style="text-align:right">Aktionen</th>
               </tr>
             </thead>
             <tbody id="diary-tbody">
-              ${entries.map(row).join('')}
+              ${items.map(diaryRow).join('')}
             </tbody>
           </table>
-        ` : empty('Noch keine Tagebucheinträge.')}
-      </div>
+        </div>
+      ` : empty('Noch keine Tagebuch-Einträge.')}
     </div>
   `;
 
-  document.getElementById('btn-new').onclick = () => showCreateModal();
+  // Neuer Eintrag
+  const newBtn = document.getElementById('btn-new');
+  if (newBtn) newBtn.onclick = ()=> showNewEntry();
 
+  // Actions
   const tbody = document.getElementById('diary-tbody');
-  if (tbody) {
-    tbody.addEventListener('click', async (e) => {
-      const viewBtn = e.target.closest('[data-view]');
-      const editBtn = e.target.closest('[data-edit]');
-      const delBtn  = e.target.closest('[data-del]');
-      if (viewBtn) {
-        const id = viewBtn.getAttribute('data-view');
-        const entry = await fetchEntry(id);
-        showViewModal(entry);
-      } else if (editBtn) {
-        const id = editBtn.getAttribute('data-edit');
-        const entry = await fetchEntry(id);
-        showEditModal(entry);
-      } else if (delBtn) {
-        const id = delBtn.getAttribute('data-del');
-        const entry = entries.find(x => x.id === id);
-        if (!canDelete(entry)) { alert('Nur der Verfasser kann löschen.'); return; }
-        if (!confirm('Eintrag wirklich löschen?')) return;
-        const { error } = await supabase.from('diary').delete().eq('id', id);
-        if (error) { alert(error.message); return; }
-        renderDiary();
-      }
-    });
-  }
+  if (!tbody) return;
+
+  tbody.addEventListener('click', (e)=>{
+    const idView = e.target.closest('button[data-view]')?.getAttribute('data-view');
+    const idEdit = e.target.closest('button[data-edit]')?.getAttribute('data-edit');
+    const idDel  = e.target.closest('button[data-del]')?.getAttribute('data-del');
+    if (idView){
+      const entry = items.find(x=> x.id === idView);
+      if (entry) showViewEntry(entry);
+    } else if (idEdit){
+      const entry = items.find(x=> x.id === idEdit);
+      if (entry) showEditEntry(entry);
+    } else if (idDel){
+      const entry = items.find(x=> x.id === idDel);
+      if (entry) confirmDeleteEntry(entry);
+    }
+  });
 }
 
-/* =========================
-   Modals: Anzeigen / Erstellen / Bearbeiten
-   ========================= */
-function showViewModal(entry) {
-  const when = entry.av_date ? formatAvDate(entry.av_date) : '—';
-  const root = modal(`
-    <div class="rte-view">
-      <h3 style="margin:0 0 6px 0">${htmlesc(entry.title || '')}</h3>
-      <div class="small" style="margin-bottom:8px">${when}${entry.tags ? ' • ' + htmlesc(entry.tags) : ''}</div>
-      <div class="card" style="margin-bottom:8px">
-        <div>${entry.content_html || '<em class="small">— kein Inhalt —</em>'}</div>
-      </div>
-      ${entry.signature ? `<div class="rte-signature">— ${htmlesc(entry.signature)} —</div>` : ''}
-    </div>
-    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
-      <button class="btn" id="dv-edit">Bearbeiten</button>
-      <button class="btn secondary" id="dv-close">Schließen</button>
-    </div>
-  `);
-  root.querySelector('#dv-close').onclick = () => root.innerHTML = '';
-  root.querySelector('#dv-edit').onclick = () => { root.innerHTML = ''; showEditModal(entry); };
-}
+/* ===================== Modals ===================== */
 
-function showCreateModal() {
-  const d = state.campaignDate || { day:1, month:1, year:1027 };
+function showNewEntry(){
   const root = modal(`
     <h3>Neuer Tagebuch-Eintrag</h3>
-    ${formRow('Titel', `<input class="input" id="di-title" />`)}
-    ${avDateInputs('di-date', d)}
-    ${formRow('Tags (optional, komma-getrennt)', `<input class="input" id="di-tags" placeholder="z.B. borbaradianer, reise, kampf" />`)}
-    ${formRow('Signatur (optional)', `<input class="input" id="di-sign" placeholder="z.B. Euer treuer Magus X." />`)}
-    <div class="label" style="margin-top:8px">Inhalt</div>
-    <div id="rte-new"></div>
+    ${formRow('Titel', '<input class="input" id="d-title" />')}
+    <div class="row">
+      <div class="card" style="margin:0">
+        <div class="label">Datum (aventurisch)</div>
+        ${datePickerAv('d-date', state.campaignDate)}
+      </div>
+      ${formRow('Tags (Komma-getrennt)', '<input class="input" id="d-tags" placeholder="z.B. reise, kampf, brief" />')}
+    </div>
+    ${formRow('Signatur (optional)', '<input class="input" id="d-sign" placeholder="gez. ..." />')}
+    <div id="rte-wrap"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
-      <button class="btn secondary" id="di-cancel">Abbrechen</button>
-      <button class="btn" id="di-save">Speichern</button>
+      <button class="btn secondary" id="d-cancel">Abbrechen</button>
+      <button class="btn" id="d-save">Speichern</button>
     </div>
   `);
 
-  const rte = buildRte(root.querySelector('#rte-new'), '');
+  const rte = buildRTE(root.querySelector('#rte-wrap'), '');
 
-  root.querySelector('#di-cancel').onclick = () => root.innerHTML = '';
-  root.querySelector('#di-save').onclick = async () => {
-    const title = document.getElementById('di-title').value.trim();
-    if (!title) { alert('Bitte Titel angeben.'); return; }
-    const payload = {
-      title,
-      av_date: readDatePickerAv('di-date'),
-      tags: (document.getElementById('di-tags').value || '').trim(),
-      signature: (document.getElementById('di-sign').value || '').trim(),
-      content_html: rte.getHtml(),
-      author_name: state.user?.user_metadata?.username || state.user?.email || 'Unbekannt'
-    };
-    const { error } = await supabase.from('diary').insert(payload);
-    if (error) { console.error('Diary insert failed:', { error, payload }); alert(error.message); return; }
-    root.innerHTML = '';
-    renderDiary();
+  root.querySelector('#d-cancel').onclick = ()=> root.innerHTML='';
+  root.querySelector('#d-save').onclick = async ()=>{
+    try{
+      const title = document.getElementById('d-title').value.trim();
+      if (!title){ alert('Titel fehlt.'); return; }
+      const payload = {
+        title,
+        content: rte.getHTML(),
+        av_date: readDatePickerAv('d-date'),
+        tags: String(document.getElementById('d-tags').value || '').trim(),
+        signature: String(document.getElementById('d-sign').value || '').trim(),
+        user_id: state.user?.id || null,
+        author_name: state.user?.user_metadata?.username || state.user?.email || 'Unbekannt'
+      };
+      await insertDiary(payload);
+      root.innerHTML='';
+      renderDiary();
+    }catch(err){
+      console.error('Diary insert failed:', err);
+      alert(err.message);
+    }
   };
 }
 
-function showEditModal(entry) {
+function showEditEntry(entry){
   const root = modal(`
-    <h3>Tagebuch-Eintrag bearbeiten</h3>
-    ${formRow('Titel', `<input class="input" id="de-title" value="${htmlesc(entry.title || '')}" />`)}
-    ${avDateInputs('de-date', entry.av_date)}
-    ${formRow('Tags (optional, komma-getrennt)', `<input class="input" id="de-tags" value="${htmlesc(entry.tags || '')}" />`)}
-    ${formRow('Signatur (optional)', `<input class="input" id="de-sign" value="${htmlesc(entry.signature || '')}" />`)}
-    <div class="label" style="margin-top:8px">Inhalt</div>
-    <div id="rte-edit"></div>
-    <div style="display:flex;gap:8px;justify-content:space-between;margin-top:12px">
-      <div>
-        ${canDelete(entry) ? `<button class="btn warn" id="de-del">Löschen</button>` : ''}
+    <h3>Eintrag bearbeiten</h3>
+    ${formRow('Titel', `<input class="input" id="e-title" value="${htmlesc(entry.title||'')}" />`)}
+    <div class="row">
+      <div class="card" style="margin:0">
+        <div class="label">Datum (aventurisch)</div>
+        ${datePickerAv('e-date', entry.av_date || state.campaignDate)}
       </div>
-      <div>
-        <button class="btn secondary" id="de-cancel">Abbrechen</button>
-        <button class="btn" id="de-save">Speichern</button>
+      ${formRow('Tags (Komma-getrennt)', `<input class="input" id="e-tags" value="${htmlesc(entry.tags||'')}" />`)}
+    </div>
+    ${formRow('Signatur (optional)', `<input class="input" id="e-sign" value="${htmlesc(entry.signature||'')}" />`)}
+    <div id="rte-wrap"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+      <button class="btn secondary" id="e-cancel">Abbrechen</button>
+      <button class="btn" id="e-save">Speichern</button>
+    </div>
+  `);
+
+  const rte = buildRTE(root.querySelector('#rte-wrap'), entry.content || '');
+
+  root.querySelector('#e-cancel').onclick = ()=> root.innerHTML='';
+  root.querySelector('#e-save').onclick = async ()=>{
+    try{
+      const payload = {
+        title: document.getElementById('e-title').value.trim(),
+        content: rte.getHTML(),
+        av_date: readDatePickerAv('e-date'),
+        tags: String(document.getElementById('e-tags').value || '').trim(),
+        signature: String(document.getElementById('e-sign').value || '').trim()
+      };
+      if (!payload.title){ alert('Titel fehlt.'); return; }
+      await updateDiary(entry.id, payload);
+      root.innerHTML='';
+      renderDiary();
+    }catch(err){
+      console.error('Diary update failed:', err);
+      alert(err.message);
+    }
+  };
+}
+
+function showViewEntry(entry){
+  const root = modal(`
+    <div class="daylist">
+      <h3 style="margin:0 0 6px 0">${htmlesc(entry.title||'')}</h3>
+      ${entry.av_date ? `<div class="small" style="margin-bottom:8px">${formatAvDate(entry.av_date)}</div>` : ''}
+      <div class="rte-view">${entry.content || ''}</div>
+      ${entry.signature ? `<div class="rte-signature">— ${htmlesc(entry.signature)}</div>` : ''}
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
+        ${state.user?.id === entry.user_id ? `<button class="btn" id="v-edit">Bearbeiten</button>` : ''}
+        ${state.user?.id === entry.user_id ? `<button class="btn warn" id="v-del">Löschen</button>` : ''}
+        <button class="btn secondary" id="v-close">Schließen</button>
       </div>
     </div>
   `);
 
-  const rte = buildRte(root.querySelector('#rte-edit'), entry.content_html || '');
+  root.querySelector('#v-close').onclick = ()=> root.innerHTML='';
+  const be = root.querySelector('#v-edit');
+  const bd = root.querySelector('#v-del');
+  if (be) be.onclick = ()=> { root.innerHTML=''; showEditEntry(entry); };
+  if (bd) bd.onclick = ()=> { root.innerHTML=''; confirmDeleteEntry(entry); };
+}
 
-  root.querySelector('#de-cancel').onclick = () => root.innerHTML = '';
-  if (canDelete(entry)) {
-    root.querySelector('#de-del').onclick = async () => {
-      if (!confirm('Eintrag wirklich löschen?')) return;
-      const { error } = await supabase.from('diary').delete().eq('id', entry.id);
-      if (error) { alert(error.message); return; }
-      root.innerHTML = '';
+function confirmDeleteEntry(entry){
+  const root = modal(`
+    <h3>Löschen bestätigen</h3>
+    <p class="small">Möchtest du den Eintrag <strong>${htmlesc(entry.title||'')}</strong> wirklich löschen?</p>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+      <button class="btn secondary" id="x-cancel">Abbrechen</button>
+      <button class="btn warn" id="x-ok">Löschen</button>
+    </div>
+  `);
+  root.querySelector('#x-cancel').onclick = ()=> root.innerHTML='';
+  root.querySelector('#x-ok').onclick = async ()=>{
+    try{
+      await deleteDiary(entry.id);
+      root.innerHTML='';
       renderDiary();
-    };
-  }
-  root.querySelector('#de-save').onclick = async () => {
-    const title = document.getElementById('de-title').value.trim();
-    if (!title) { alert('Bitte Titel angeben.'); return; }
-    const payload = {
-      title,
-      av_date: readDatePickerAv('de-date'),
-      tags: (document.getElementById('de-tags').value || '').trim(),
-      signature: (document.getElementById('de-sign').value || '').trim(),
-      content_html: rte.getHtml()
-    };
-    const { error } = await supabase.from('diary').update(payload).eq('id', entry.id);
-    if (error) { alert(error.message); return; }
-    root.innerHTML = '';
-    renderDiary();
+    }catch(err){
+      console.error('Diary delete failed:', err);
+      alert(err.message);
+    }
   };
 }
