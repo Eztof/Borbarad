@@ -1,4 +1,5 @@
 import { supabase, uploadImage } from './supabaseClient.js';
+import { state } from './state.js';
 import { section, modal, formRow, empty, avatar, dateBadge, avDateInputs } from './components.js';
 import { byStr, htmlesc, readDatePickerAv, formatAvDate } from './utils.js';
 
@@ -76,7 +77,7 @@ function row(n){
     <td style="display:flex;align-items:center;gap:10px">${avatar(n.image_url, n.name, 36)} <strong>${htmlesc(n.name)}</strong></td>
     <td class="small">${htmlesc(n.tags||'')}</td>
     <td>${n.first_encounter ? dateBadge(n.first_encounter) : '<span class="small">–</span>'}</td>
-    <td>${n.last_encounter ? dateBadge(n.last_encounter) : '<span class="small">–</span>'}</td>
+    <td>${n.is_active ? dateBadge(state.campaignDate) : (n.last_encounter ? dateBadge(n.last_encounter) : '<span class="small">–</span>')}</td>
     <td class="small">${htmlesc(n.whereabouts||'')}</td>
   </tr>`;
 }
@@ -196,7 +197,8 @@ function showNSC(n){
         </div>
         <div class="card" style="margin-top:10px">
           <div class="label">Letzte Begegnung</div>
-          <div>${n.last_encounter ? formatAvDate(n.last_encounter) : '–'}</div>
+          <div>${n.is_active ? formatAvDate(state.campaignDate) : (n.last_encounter ? formatAvDate(n.last_encounter) : '–')}</div>
+          ${n.is_active ? `<div class="small" style="margin-top:6px">Status: Aktiv – nutzt aktuelles Kampagnen-Datum</div>` : ''}
         </div>
         <div class="card" style="margin-top:10px">
           <div class="label">Verbleib</div>
@@ -215,7 +217,7 @@ function showNSC(n){
   root.querySelector('#nsc-history').onclick = ()=> showHistoryNSC(n.id);
 }
 
-/* ============ Neu anlegen ============ */
+/* ============ Neu anlegen (jetzt mit "Aktiv") ============ */
 function showAddNSC(){
   const root = modal(`
     <h3>Neuen NSC anlegen</h3>
@@ -224,9 +226,12 @@ function showAddNSC(){
     ${formRow('Bild', '<input class="input" id="n-image" type="file" accept="image/*" />')}
     ${formRow('Biographie', '<textarea class="input" id="n-bio" rows="5"></textarea>')}
     <div class="row">
-      ${avDateInputs('n-first')}
-      ${avDateInputs('n-last')}
+      ${avDateInputs('n-first', state.campaignDate)}
+      <div id="n-last-wrap">
+        ${avDateInputs('n-last', state.campaignDate)}
+      </div>
     </div>
+    ${formRow('Status', `<label class="small"><input type="checkbox" id="n-active" checked /> Aktiv (ständig in Kontakt)</label>`)}
     ${formRow('Verbleib', '<input class="input" id="n-where" />')}
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
       <button class="btn secondary" id="n-cancel">Abbrechen</button>
@@ -234,22 +239,33 @@ function showAddNSC(){
     </div>
   `);
 
+  // Tag-Suggest
   mountTagSuggest(root.querySelector('#n-tags'));
+
+  // Aktiv-Toggle (blendet "Letzte Begegnung" aus, wenn aktiv)
+  const cbActive = root.querySelector('#n-active');
+  const wrapLast = root.querySelector('#n-last-wrap');
+  const syncLastVisibility = ()=>{ wrapLast.style.display = cbActive.checked ? 'none' : ''; };
+  syncLastVisibility();
+  cbActive.addEventListener('change', syncLastVisibility);
 
   root.querySelector('#n-cancel').onclick = ()=> root.innerHTML='';
   root.querySelector('#n-save').onclick = async ()=>{
     try{
       const file = document.getElementById('n-image').files[0];
       const image_url = file ? await uploadImage(file, 'nscs') : null;
+      const is_active = document.getElementById('n-active').checked;
+
       const payload = {
         name: document.getElementById('n-name').value.trim(),
         tags: parseTags(document.getElementById('n-tags').value).join(', '),
         image_url,
         biography: document.getElementById('n-bio').value,
         first_encounter: readDatePickerAv('n-first'),
-        last_encounter: readDatePickerAv('n-last'),
+        // Wenn aktiv: initial direkt auf aktuelles Kampagnen-Datum setzen
+        last_encounter: is_active ? state.campaignDate : readDatePickerAv('n-last'),
         whereabouts: document.getElementById('n-where').value.trim(),
-        is_active: false
+        is_active
       };
       if (!payload.name){ alert('Name fehlt'); return; }
 
@@ -257,12 +273,13 @@ function showAddNSC(){
       const { data:dup } = await supabase.from('nscs').select('id').eq('name', payload.name).maybeSingle();
       if (dup){ alert('Name bereits vergeben.'); return; }
 
-      const { data, error } = await supabase.from('nscs').insert(payload).select('id').single();
+      const { error } = await supabase.from('nscs').insert(payload);
       if (error) throw error;
 
+      // Tags-Table updaten
       await upsertNewTags(parseTags(payload.tags));
-      await recordHistoryNSC(data.id, 'create', payload);
 
+      await recordHistoryNSC(null, 'create', payload);
       root.innerHTML='';
       location.hash = '#/nscs';
     }catch(err){ alert(err.message); }
@@ -277,10 +294,10 @@ function showEditNSC(n){
     ${formRow('Tags (Komma-getrennt)', `<input class="input" id="e-tags" value="${htmlesc(n.tags||'')}" />`)}
     ${formRow('Bild (neu hochladen, optional)', '<input class="input" id="e-image" type="file" accept="image/*" />')}
     ${formRow('Biographie', `<textarea class="input" id="e-bio" rows="5">${htmlesc(n.biography||'')}</textarea>`)}
-    ${avDateInputs('e-first', n.first_encounter)}
+    ${avDateInputs('e-first', n.first_encounter || state.campaignDate)}
     ${formRow('Status', `<label class="small"><input type="checkbox" id="e-active" ${n.is_active?'checked':''}/> Aktiv (ständig in Kontakt)</label>`)}
     <div id="e-last-wrap" style="${n.is_active ? 'display:none' : ''}">
-      ${avDateInputs('e-last', n.last_encounter)}
+      ${avDateInputs('e-last', n.last_encounter || state.campaignDate)}
     </div>
     ${formRow('Verbleib', `<input class="input" id="e-where" value="${htmlesc(n.whereabouts||'')}" />`)}
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
@@ -319,7 +336,7 @@ function showEditNSC(n){
         whereabouts: document.getElementById('e-where').value.trim(),
         is_active: document.getElementById('e-active').checked
       };
-      updated.last_encounter = updated.is_active ? null : readDatePickerAv('e-last');
+      updated.last_encounter = updated.is_active ? state.campaignDate : readDatePickerAv('e-last');
 
       const { error } = await supabase.from('nscs').update(updated).eq('id', n.id);
       if (error) throw error;
@@ -333,17 +350,16 @@ function showEditNSC(n){
   };
 }
 
-/* ============ Verlauf anzeigen – hübsch, ohne JSON-Dump ============ */
+/* ============ Verlauf anzeigen – kompakt ============ */
 function renderNscHistorySnapshot(d){
   if (!d || typeof d !== 'object') return '';
-
   const keys = Object.keys(d);
+
   if (keys.length === 1 && 'image_url' in d){
     const url = d.image_url || '';
     const thumb = url ? `<div style="margin-top:6px"><img src="${url}" alt="Bild" style="max-width:180px;max-height:120px;border-radius:8px;border:1px solid #4b2a33;object-fit:cover"/></div>` : '';
     return `<div><strong>Bild aktualisiert</strong>${thumb}</div>`;
   }
-
   const parts = [];
   if ('name' in d) parts.push(`<div><strong>Name:</strong> ${htmlesc(d.name||'')}</div>`);
   if ('tags' in d) parts.push(`<div><strong>Tags:</strong> ${htmlesc(d.tags||'')}</div>`);

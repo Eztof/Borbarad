@@ -1,8 +1,19 @@
-import { state, setCampaignDate } from './state.js';
-import { section, empty } from './components.js';
-import { formatAvDate, datePickerAv, readDatePickerAv } from './utils.js';
 import { supabase } from './supabaseClient.js';
+import { state, setCampaignDate } from './state.js';
+import { section, empty, formRow } from './components.js';
+import { formatAvDate, datePickerAv, readDatePickerAv } from './utils.js';
 
+/* ---------- Helden laden ---------- */
+async function fetchHeroes(){
+  const { data, error } = await supabase
+    .from('heroes')
+    .select('id,name,ap_total,lp_current,lp_max')
+    .order('name', { ascending: true });
+  if (error){ console.error(error); return []; }
+  return data;
+}
+
+/* ---------- Heldenkarte ---------- */
 function heroCard(h){
   const lpMax = Number(h.lp_max ?? 0);
   const lpCur = Math.max(0, Math.min(lpMax, Number(h.lp_current ?? 0)));
@@ -21,15 +32,35 @@ function heroCard(h){
   `;
 }
 
-async function fetchHeroes(){
-  const { data, error } = await supabase
-    .from('heroes')
-    .select('id,name,ap_total,lp_current,lp_max')
-    .order('name', { ascending: true });
-  if (error){ console.error(error); return []; }
-  return data;
+/* ---------- Kampagnendatum speichern ---------- */
+async function saveCampaignDateAndPropagate(){
+  const newDate = readDatePickerAv('home-date');
+
+  // 1) Im lokalen State speichern
+  setCampaignDate(newDate);
+
+  // 2) Optional in DB persistieren (falls Tabelle existiert)
+  try{
+    // Erwartet eine Tabelle campaign_state(id text primary key, av_date jsonb)
+    await supabase.from('campaign_state')
+      .upsert({ id: 'singleton', av_date: newDate }, { onConflict: 'id' });
+  }catch(e){
+    console.warn('campaign_state upsert:', e.message);
+  }
+
+  // 3) Alle aktiven NSCs auf neues Datum setzen
+  try{
+    const { error } = await supabase
+      .from('nscs')
+      .update({ last_encounter: newDate })
+      .eq('is_active', true);
+    if (error) console.warn('nscs propagate last_encounter:', error.message);
+  }catch(e){
+    console.warn('nscs propagate last_encounter (catch):', e.message);
+  }
 }
 
+/* ---------- Seite rendern ---------- */
 export async function renderHome(){
   const app = document.getElementById('app');
   const d = state.campaignDate;
@@ -38,12 +69,15 @@ export async function renderHome(){
   app.innerHTML = `
     <div class="card">
       ${section('Start')}
-      <p class="small">Aktuelles Kampagnen-Datum</p>
-      <h2 style="margin:6px 0">${formatAvDate(d)}</h2>
-      <div class="card" style="margin-top:10px">
-        ${datePickerAv('home-date', d)}
-        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
-          <button class="btn" id="save-date">Speichern</button>
+      <div class="card">
+        <div class="label">Aktuelles Kampagnen-Datum (Aventurisch)</div>
+        <div class="row">
+          <div class="card" style="margin:0">${datePickerAv('home-date', d)}</div>
+          <div>
+            <div class="small" style="margin-bottom:8px">Vorschau</div>
+            <h2 style="margin:6px 0">${formatAvDate(d)}</h2>
+            <button class="btn" id="btn-save-date" style="margin-top:8px">Speichern</button>
+          </div>
         </div>
       </div>
     </div>
@@ -54,9 +88,10 @@ export async function renderHome(){
     </div>
   `;
 
-  document.getElementById('save-date').onclick = ()=>{
-    const av = readDatePickerAv('home-date');
-    setCampaignDate(av);
+  // Button: Speichern
+  document.getElementById('btn-save-date').onclick = async ()=>{
+    await saveCampaignDateAndPropagate();
+    // Nach dem Speichern die Seite neu rendern (zeigt aktualisierte Vorschau etc.)
     renderHome();
   };
 }
