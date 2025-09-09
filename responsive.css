@@ -1,0 +1,116 @@
+/* Responsive enhancements for Borbarad – non-breaking, overrides-only.
+   Keep original CSS intact; this file only adjusts layout on small screens. */
+
+:root{
+  --tap-target: 44px;
+}
+
+/* Generic utilities */
+img, video, canvas{max-width:100%;height:auto}
+
+/* Topbar & navigation */
+@media (max-width: 860px){
+  .topbar{
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+  }
+  .topbar .brand{
+    font-size: 16px;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 60vw;
+  }
+  .menu{
+    display:flex;
+    gap:12px;
+    overflow-x:auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .menu::-webkit-scrollbar{display:none}
+  .menu a{
+    padding: 10px 12px;
+    white-space: nowrap;
+  }
+}
+
+/* Layout grids */
+@media (max-width: 760px){
+  .row{grid-template-columns:1fr !important}
+  .grid{grid-template-columns:1fr !important}
+  .wrap{padding:12px}
+  .panel{padding:12px}
+}
+
+/* Extra-small phones */
+@media (max-width: 420px){
+  .cal-grid{grid-template-columns:repeat(2,1fr) !important}
+}
+
+/* Forms: full-width and touch-friendly */
+@media (max-width: 760px){
+  input[type="text"],
+  input[type="password"],
+  input[type="number"],
+  input[type="search"],
+  input[type="email"],
+  select,
+  textarea{
+    width:100%;
+    min-height: var(--tap-target);
+    font-size:16px;
+  }
+  .btn{
+    min-height: var(--tap-target);
+    padding: 10px 14px;
+  }
+  .toolbar, .bar{
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+}
+
+/* Tables: horizontal scroll on small screens */
+.table, table{
+  width:100%;
+  border-collapse: collapse;
+}
+@media (max-width: 760px){
+  .table, table{
+    display:block;
+    overflow-x:auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .table thead, table thead{
+    position: sticky;
+    top: 0;
+  }
+}
+
+/* Modals and dialogs */
+.modal, .dialog{
+  max-height: 90vh;
+  overflow:auto;
+}
+
+/* Chips & tags wrap nicely */
+@media (max-width: 760px){
+  .tags, .chips, .chiplist{
+    display:flex;
+    flex-wrap: wrap;
+    gap:8px;
+  }
+}
+
+/* Calendar day cells: ensure tap size */
+.cal-cell, .cal-day{
+  min-height: 52px;
+}
+
+/* Prevent content from hitting screen edges */
+@media (max-width: 760px){
+  body{padding-bottom: 64px}
+}
