@@ -2,29 +2,58 @@
 <html lang="de">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- WICHTIG: Verbesserte Viewport-Einstellungen für Mobile -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  
+  <!-- PWA Meta-Tags für bessere Mobile Experience -->
+  <meta name="theme-color" content="#c22f2f" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Borbarad DSA" />
+  
+  <!-- Preload kritische Schriften für Performance -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
+  
   <title>Borbarad – DSA 4.1 Kampagnen-Tool</title>
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="responsive.css" />
+  
+  <!-- Favicon für verschiedene Geräte -->
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+  
+  <!-- Manifest für PWA -->
+  <link rel="manifest" href="/manifest.json" />
 </head>
 <body>
   <header class="topbar">
     <div class="brand">Borbarad – DSA 4.1</div>
-    <nav class="menu" id="menu">
-      <a href="#/home">Start</a>
-      <a href="#/heroes">Helden</a>
-      <a href="#/nscs">NSCs</a>
-      <a href="#/objects">Objekte</a>
-      <a href="#/calendar">Kalender</a>
-      <a href="#/diary">Tagebuch</a>
-      <a href="#/tags">Tags</a>
-      <a href="#/open">Offen</a>
+    <nav class="menu" id="menu" role="navigation" aria-label="Hauptnavigation">
+      <a href="#/home" aria-label="Zur Startseite">Start</a>
+      <a href="#/heroes" aria-label="Helden verwalten">Helden</a>
+      <a href="#/nscs" aria-label="NSCs verwalten">NSCs</a>
+      <a href="#/objects" aria-label="Objekte verwalten">Objekte</a>
+      <a href="#/calendar" aria-label="Kalender anzeigen">Kalender</a>
+      <a href="#/diary" aria-label="Tagebuch anzeigen">Tagebuch</a>
+      <a href="#/tags" aria-label="Tags verwalten">Tags</a>
+      <a href="#/open" aria-label="Offene Punkte anzeigen">Offen</a>
     </nav>
     <div class="authbox" id="authbox"></div>
   </header>
 
-  <main id="app" class="app"></main>
-  <div id="modal-root"></div>
+  <!-- Haupt-App Container -->
+  <main id="app" class="app" role="main"></main>
+  
+  <!-- Modal Container -->
+  <div id="modal-root" aria-live="polite"></div>
+
+  <!-- Loading Spinner für bessere UX -->
+  <div id="loading-spinner" class="loading-spinner" style="display:none;">
+    <div class="spinner"></div>
+    <p>Lädt...</p>
+  </div>
 
   <!-- Vendor-CDNs -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.3"></script>
@@ -45,6 +74,20 @@
   <script type="module" src="./js/tags.js"></script>
   <script type="module" src="./js/open.js"></script>
 
+  <!-- NEUE Mobile-Enhancements -->
+  <script type="module" src="./js/mobile-enhancements.js"></script>
+  
   <script type="module" src="./js/router.js"></script>
+
+  <!-- Service Worker Registration -->
+  <script>
+    // Service Worker für Offline-Funktionalität
+    if ('serviceWorker' in navigator && location.protocol === 'https:') {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+          .catch(err => console.log('SW registration failed'));
+      });
+    }
+  </script>
 </body>
 </html>
