@@ -5,7 +5,6 @@ export function renderAuthBox(user){
   if (!el) return;
   const name = user?.user_metadata?.username || user?.email || 'User';
   el.innerHTML = user ? `
-    <span class="small">Angemeldet: ${name}</span>
     <button class="btn secondary" id="btn-logout">Logout</button>
   ` : `
     <button class="btn secondary" id="btn-login">Login</button>
