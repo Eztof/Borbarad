@@ -836,3 +836,100 @@ textarea {
 .scroll-top:active {
   transform: scale(0.9);
 }
+
+
+/* Mobile Cards Styles */
+@media (max-width: 768px) {
+  .mobile-cards-container {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  
+  .mobile-card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    transition: all 0.2s ease;
+    cursor: pointer;
+  }
+  
+  .mobile-card:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    transform: translateY(-2px);
+  }
+  
+  .mobile-card:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  }
+  
+  .mobile-card-header {
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  
+  .mobile-card-header h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+  }
+  
+  .mobile-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  
+  .mobile-card-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  
+  .mobile-card-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--muted);
+  }
+  
+  .mobile-card-value {
+    font-size: 16px;
+    color: var(--text);
+    word-wrap: break-word;
+  }
+  
+  .mobile-card-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line-soft);
+  }
+  
+  .mobile-card-btn {
+    min-width: auto;
+    padding: 8px 16px;
+    font-size: 14px;
+  }
+  
+  /* Verstecke Desktop-Tabellen auf Mobile */
+  #desktop-view,
+  #desktop-nscs,
+  #desktop-objs {
+    display: none;
+  }
+}
+
+/* Desktop Styles - Verstecke Mobile Cards auf Desktop */
+@media (min-width: 769px) {
+  #mobile-view,
+  #mobile-nscs,
+  #mobile-objs {
+    display: none;
+  }
+}

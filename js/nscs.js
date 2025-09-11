@@ -17,6 +17,7 @@ async function loadAllTags(){
   }catch(e){ TAG_CACHE = []; }
   return TAG_CACHE;
 }
+
 function normalizeTag(s){ return String(s||'').trim().replace(/\s+/g,' '); }
 function parseTags(raw){ return String(raw||'').split(',').map(normalizeTag).filter(Boolean); }
 
@@ -32,8 +33,11 @@ async function mountTagSuggest(inputEl){
     const parts = val.split(',');
     return normalizeTag(parts[parts.length-1] || '');
   };
+
   const existingSet = ()=> new Set(parseTags(inputEl.value));
+
   const close = ()=>{ sug.style.display='none'; sug.innerHTML=''; };
+
   const openWith = (list)=>{
     if (!list.length){ close(); return; }
     sug.innerHTML = list.slice(0,8).map(t=>`<div class="suggest-item" data-v="${htmlesc(t)}">${htmlesc(t)}</div>`).join('');
@@ -57,6 +61,7 @@ async function mountTagSuggest(inputEl){
     const res = TAG_CACHE.filter(t => t.toLowerCase().includes(q) && !ex.has(t));
     openWith(res);
   });
+
   inputEl.addEventListener('keydown', (e)=>{ if (e.key==='Escape') close(); });
   document.addEventListener('click', (e)=>{ if (!wrap.contains(e.target)) close(); });
 }
@@ -71,7 +76,7 @@ async function listNSCs(){
   return data;
 }
 
-/* ============ Tabelle ============ */
+/* ============ Tabelle für Desktop ============ */
 function row(n){
   return `<tr data-id="${n.id}" class="nsc-row">
     <td style="display:flex;align-items:center;gap:10px">${avatar(n.image_url, n.name, 36)} <strong>${htmlesc(n.name)}</strong></td>
@@ -81,6 +86,42 @@ function row(n){
     <td class="small">${htmlesc(n.whereabouts||'')}</td>
   </tr>`;
 }
+
+/* ============ Card-Ansicht für Mobile ============ */
+function mobileCard(n) {
+  return `
+    <div class="mobile-card" data-id="${n.id}">
+      <div class="mobile-card-header">
+        <div style="display:flex;align-items:center;gap:10px">
+          ${avatar(n.image_url, n.name, 40)}
+          <strong>${htmlesc(n.name)}</strong>
+        </div>
+      </div>
+      <div class="mobile-card-body">
+        <div class="mobile-card-item">
+          <span class="mobile-card-label">Tags:</span>
+          <span class="mobile-card-value">${htmlesc(n.tags||'–')}</span>
+        </div>
+        <div class="mobile-card-item">
+          <span class="mobile-card-label">Erste Begegnung:</span>
+          <span class="mobile-card-value">${n.first_encounter ? formatAvDate(n.first_encounter) : '–'}</span>
+        </div>
+        <div class="mobile-card-item">
+          <span class="mobile-card-label">Letzte Begegnung:</span>
+          <span class="mobile-card-value">${n.is_active ? formatAvDate(state.campaignDate) : (n.last_encounter ? formatAvDate(n.last_encounter) : '–')}</span>
+        </div>
+        <div class="mobile-card-item">
+          <span class="mobile-card-label">Verbleib:</span>
+          <span class="mobile-card-value">${htmlesc(n.whereabouts||'–')}</span>
+        </div>
+      </div>
+      <div class="mobile-card-footer">
+        <button class="btn secondary mobile-card-btn">Details</button>
+      </div>
+    </div>
+  `;
+}
+
 function sortItems(items){ return items.sort((a,b)=> sortDir * byStr(sortField)(a,b)); }
 
 /* ============ Verlauf aufnehmen (best effort) ============ */
@@ -109,8 +150,7 @@ export async function renderNSCs(){
           <button class="btn" id="add-nsc">+ NSC</button>
         </div>
       `)}
-
-      <div class="card">
+      <div id="desktop-view" class="card">
         <table class="table">
           <thead>
             <tr>
@@ -126,22 +166,46 @@ export async function renderNSCs(){
           </tbody>
         </table>
       </div>
-
+      <div id="mobile-view" class="mobile-cards-container">
+        ${items.map(mobileCard).join('')}
+      </div>
       ${!items.length ? empty('Noch keine NSCs angelegt.') : ''}
     </div>
   `;
 
+  // Mobile/Desktop View Toggle
+  const desktopView = document.getElementById('desktop-view');
+  const mobileView = document.getElementById('mobile-view');
   const tbody = document.getElementById('nsc-tbody');
 
-  // Suche
+  function updateView() {
+    if (window.innerWidth <= 768) {
+      desktopView.style.display = 'none';
+      mobileView.style.display = 'block';
+    } else {
+      desktopView.style.display = 'block';
+      mobileView.style.display = 'none';
+    }
+  }
+
+  // Initial view setzen
+  updateView();
+  window.addEventListener('resize', updateView);
+
+  // Suche (funktioniert für beide Views)
   const q = document.getElementById('nsc-q');
   q.addEventListener('input', ()=>{
     const v = q.value.toLowerCase();
     const filtered = items.filter(n=> `${n.name} ${(n.tags||'')}`.toLowerCase().includes(v));
+    
+    // Desktop View aktualisieren
     tbody.innerHTML = filtered.map(row).join('');
+    
+    // Mobile View aktualisieren
+    mobileView.innerHTML = filtered.map(mobileCard).join('');
   });
 
-  // Sortier-Header
+  // Sortier-Header (nur Desktop)
   document.querySelectorAll('th[data-sf]').forEach(th=>{
     th.style.cursor='pointer';
     th.onclick = ()=>{
@@ -149,16 +213,29 @@ export async function renderNSCs(){
       sortField===f ? (sortDir*=-1) : (sortField=f, sortDir=1);
       items = sortItems(items);
       tbody.innerHTML = items.map(row).join('');
+      mobileView.innerHTML = items.map(mobileCard).join('');
     };
   });
 
-  // Detail / Edit öffnen
+  // Detail / Edit öffnen (Desktop)
   tbody.addEventListener('click', (e)=>{
     const tr = e.target.closest('tr.nsc-row');
     if (!tr) return;
     const id = tr.dataset.id;
     const n = items.find(x=>x.id===id);
     if (n) showNSC(n);
+  });
+
+  // Detail / Edit öffnen (Mobile)
+  mobileView.addEventListener('click', (e) => {
+    const card = e.target.closest('.mobile-card');
+    if (!card) return;
+    
+    if (e.target.classList.contains('mobile-card-btn')) {
+      const id = card.dataset.id;
+      const n = items.find(x=>x.id===id);
+      if (n) showNSC(n);
+    }
   });
 
   // + NSC
@@ -255,7 +332,6 @@ function showAddNSC(){
       const file = document.getElementById('n-image').files[0];
       const image_url = file ? await uploadImage(file, 'nscs') : null;
       const is_active = document.getElementById('n-active').checked;
-
       const payload = {
         name: document.getElementById('n-name').value.trim(),
         tags: parseTags(document.getElementById('n-tags').value).join(', '),
@@ -268,17 +344,13 @@ function showAddNSC(){
         is_active
       };
       if (!payload.name){ alert('Name fehlt'); return; }
-
       // Duplikat?
       const { data:dup } = await supabase.from('nscs').select('id').eq('name', payload.name).maybeSingle();
       if (dup){ alert('Name bereits vergeben.'); return; }
-
       const { error } = await supabase.from('nscs').insert(payload);
       if (error) throw error;
-
       // Tags-Table updaten
       await upsertNewTags(parseTags(payload.tags));
-
       await recordHistoryNSC(null, 'create', payload);
       root.innerHTML='';
       location.hash = '#/nscs';
@@ -318,15 +390,12 @@ function showEditNSC(n){
     try{
       const name = document.getElementById('e-name').value.trim();
       if (!name){ alert('Name fehlt'); return; }
-
       if (name !== n.name){
         const { data:dup } = await supabase.from('nscs').select('id').eq('name', name).maybeSingle();
         if (dup){ alert('Name bereits vergeben.'); return; }
       }
-
       const file = document.getElementById('e-image').files[0];
       const image_url = file ? await uploadImage(file, 'nscs') : n.image_url;
-
       const updated = {
         name,
         tags: parseTags(document.getElementById('e-tags').value).join(', '),
@@ -337,13 +406,10 @@ function showEditNSC(n){
         is_active: document.getElementById('e-active').checked
       };
       updated.last_encounter = updated.is_active ? state.campaignDate : readDatePickerAv('e-last');
-
       const { error } = await supabase.from('nscs').update(updated).eq('id', n.id);
       if (error) throw error;
-
       await upsertNewTags(parseTags(updated.tags));
       await recordHistoryNSC(n.id, 'update', updated);
-
       root.innerHTML='';
       location.hash = '#/nscs';
     }catch(err){ alert(err.message); }
@@ -354,7 +420,6 @@ function showEditNSC(n){
 function renderNscHistorySnapshot(d){
   if (!d || typeof d !== 'object') return '';
   const keys = Object.keys(d);
-
   if (keys.length === 1 && 'image_url' in d){
     const url = d.image_url || '';
     const thumb = url ? `<div style="margin-top:6px"><img src="${url}" alt="Bild" style="max-width:180px;max-height:120px;border-radius:8px;border:1px solid #4b2a33;object-fit:cover"/></div>` : '';
@@ -384,7 +449,6 @@ async function showHistoryNSC(nsc_id){
       .eq('nsc_id', nsc_id)
       .order('created_at', { ascending:false });
     if (error) throw error;
-
     const items = (data||[]).map(rec=>{
       const when = new Date(rec.created_at).toLocaleString('de-DE');
       const who  = rec.changed_by_name || 'Unbekannt';
@@ -395,7 +459,6 @@ async function showHistoryNSC(nsc_id){
           ${snap || '<div class="small">—</div>'}
         </div>`;
     }).join('') || '<div class="empty">Noch kein Verlauf.</div>';
-
     const root = modal(`
       <h3 style="margin:0 0 8px 0">Verlauf (NSC)</h3>
       <div style="display:grid;gap:10px;max-height:60vh;overflow:auto">${items}</div>
