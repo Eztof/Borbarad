@@ -35,10 +35,10 @@ CREATE TABLE public.events (
   related_hero_id uuid,
   location text,
   CONSTRAINT events_pkey PRIMARY KEY (id),
-  CONSTRAINT events_related_hero_id_fkey FOREIGN KEY (related_hero_id) REFERENCES public.heroes(id),
-  CONSTRAINT events_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
   CONSTRAINT events_related_nsc_id_fkey FOREIGN KEY (related_nsc_id) REFERENCES public.nscs(id),
-  CONSTRAINT events_related_object_id_fkey FOREIGN KEY (related_object_id) REFERENCES public.objects(id)
+  CONSTRAINT events_related_object_id_fkey FOREIGN KEY (related_object_id) REFERENCES public.objects(id),
+  CONSTRAINT events_related_hero_id_fkey FOREIGN KEY (related_hero_id) REFERENCES public.heroes(id),
+  CONSTRAINT events_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
 );
 CREATE TABLE public.heroes (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -51,6 +51,10 @@ CREATE TABLE public.heroes (
   ap_total integer DEFAULT 0,
   lp_current integer DEFAULT 30,
   lp_max integer DEFAULT 30,
+  purse_dukaten integer DEFAULT 0,
+  purse_silbertaler integer DEFAULT 0,
+  purse_heller integer DEFAULT 0,
+  purse_kreuzer integer DEFAULT 0,
   CONSTRAINT heroes_pkey PRIMARY KEY (id),
   CONSTRAINT heroes_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
 );
@@ -78,8 +82,8 @@ CREATE TABLE public.nscs_history (
   changed_by_name text,
   data jsonb NOT NULL,
   CONSTRAINT nscs_history_pkey PRIMARY KEY (id),
-  CONSTRAINT nscs_history_nsc_id_fkey FOREIGN KEY (nsc_id) REFERENCES public.nscs(id),
-  CONSTRAINT nscs_history_changed_by_fkey FOREIGN KEY (changed_by) REFERENCES auth.users(id)
+  CONSTRAINT nscs_history_changed_by_fkey FOREIGN KEY (changed_by) REFERENCES auth.users(id),
+  CONSTRAINT nscs_history_nsc_id_fkey FOREIGN KEY (nsc_id) REFERENCES public.nscs(id)
 );
 CREATE TABLE public.objects (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -105,15 +109,17 @@ CREATE TABLE public.objects_history (
   changed_by_name text,
   data jsonb NOT NULL,
   CONSTRAINT objects_history_pkey PRIMARY KEY (id),
-  CONSTRAINT objects_history_object_id_fkey FOREIGN KEY (object_id) REFERENCES public.objects(id),
-  CONSTRAINT objects_history_changed_by_fkey FOREIGN KEY (changed_by) REFERENCES auth.users(id)
+  CONSTRAINT objects_history_changed_by_fkey FOREIGN KEY (changed_by) REFERENCES auth.users(id),
+  CONSTRAINT objects_history_object_id_fkey FOREIGN KEY (object_id) REFERENCES public.objects(id)
 );
 CREATE TABLE public.profiles (
   user_id uuid NOT NULL,
   username text NOT NULL UNIQUE,
   email_stash text NOT NULL UNIQUE,
   created_at timestamp with time zone DEFAULT now(),
+  active_hero_id uuid,
   CONSTRAINT profiles_pkey PRIMARY KEY (user_id),
+  CONSTRAINT profiles_active_hero_id_fkey FOREIGN KEY (active_hero_id) REFERENCES public.heroes(id),
   CONSTRAINT profiles_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
 );
 CREATE TABLE public.tags (
