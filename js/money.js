@@ -1,9 +1,7 @@
 // js/money.js
 import { supabase } from './supabaseClient.js';
 import { state } from './state.js';
-// Achten Sie darauf, dass der Import-Pfad zu 'utils.js' korrekt ist.
-// Im Original ist es 'utils.js', nicht 'util.js'
-import { htmlesc } from './utils.js'; // Korrigiert: 'utils.js'
+import { htmlesc } from './utils.js'; // Stellen Sie sicher, dass der Pfad korrekt ist
 
 // Hilfsfunktion: Formatierung des Geldbetrags
 function formatMoney(dukaten, silbertaler, heller, kreuzer) {
@@ -15,47 +13,43 @@ function formatMoney(dukaten, silbertaler, heller, kreuzer) {
     return parts.length > 0 ? parts.join(', ') : '0 Kreuzer';
 }
 
-// *** KORRIGIERT: Funktion zum Abrufen der eigenen Helden ***
-// Entfernt die Abfrage von 'is_active', da diese Info im Profil ist.
-async function fetchOwnHeroes() {
+// *** Funktion zum Abrufen des aktiven Helden mit Geldbörse ***
+async function fetchActiveHeroWithPurse() {
     if (!state.user?.id) {
         console.warn("Kein Benutzer eingeloggt.");
-        return [];
+        return null;
     }
-    // KORRIGIERT: 'is_active' aus dem SELECT entfernt
-    const { data, error } = await supabase
-        .from('heroes')
-        .select('id, name, purse_dukaten, purse_silbertaler, purse_heller, purse_kreuzer') // <-- 'is_active' entfernt
-        .eq('user_id', state.user.id)
-        .order('name', { ascending: true });
 
-    if (error) {
-        console.error("Fehler beim Abrufen der eigenen Helden:", error);
-        alert("Fehler beim Laden der Heldenliste.");
-        return [];
-    }
-    return data || [];
-}
-
-// *** Funktion zum Setzen des aktiven Helden im Profil ***
-async function setActiveHeroInProfile(heroId) {
-    if (!state.user?.id) {
-        console.warn("Kein Benutzer eingeloggt.");
-        return;
-    }
-    const { error } = await supabase
+    // 1. Aktive Held ID aus dem Profil abrufen
+    const { data: profileData, error: profileError } = await supabase
         .from('profiles')
-        .update({ active_hero_id: heroId })
-        .eq('user_id', state.user.id);
+        .select('active_hero_id')
+        .eq('user_id', state.user.id)
+        .single();
 
-    if (error) {
-        console.error("Fehler beim Setzen des aktiven Helden:", error);
-        alert("Fehler beim Aktivieren des Helden.");
-    } else {
-        console.log(`Aktiver Held auf ${heroId} gesetzt.`);
-        // Optional: Globale State-Variable aktualisieren, falls vorhanden
-        // state.activeHeroId = heroId; // Nicht im Originalcode verwendet
+    if (profileError || !profileData?.active_hero_id) {
+        // Kein Profil oder kein aktiver Held gesetzt
+        console.log("Kein aktiver Held im Profil gefunden.");
+        return null; // Signalisiert: kein aktiver Held
     }
+
+    const activeHeroId = profileData.active_hero_id;
+
+    // 2. Daten des aktiven Helden abrufen
+    const { data: heroData, error: heroError } = await supabase
+        .from('heroes')
+        .select('id, name, purse_dukaten, purse_silbertaler, purse_heller, purse_kreuzer')
+        .eq('id', activeHeroId)
+        .single(); // Es sollte nur ein Held mit dieser ID geben
+
+    if (heroError) {
+        console.error("Fehler beim Abrufen des aktiven Helden:", heroError);
+        // Je nach Fehlerart könnte man unterscheiden
+        // z.B. falls Held gelöscht wurde, aber ID im Profil steht
+        return null;
+    }
+
+    return heroData || null;
 }
 
 // *** Funktion zum Aktualisieren der Geldbörse eines Helden ***
@@ -75,10 +69,10 @@ async function updateHeroPurse(heroId, purseData) {
     return true;
 }
 
-// *** Haupt-Render-Funktion für die Geld-Seite ***
+// *** Haupt-Render-Funktion für die vereinfachte Geld-Seite ***
 export async function renderMoney() {
     const app = document.getElementById('app');
-    app.innerHTML = '<div class="card"><h2>Geld</h2><p>Lade Daten...</p></div>';
+    app.innerHTML = '<div class="card"><h2>Geld</h2><p>Lade aktiven Helden...</p></div>';
 
     if (!state.user?.id) {
         app.innerHTML = '<div class="card"><h2>Geld</h2><p>Zugriff erforderlich. Bitte melde dich an.</p></div>';
@@ -86,70 +80,12 @@ export async function renderMoney() {
     }
 
     try {
-        // 1. Helden und aktiven Helden abrufen
-        const heroes = await fetchOwnHeroes();
-        
-        // 2. Aktiven Helden aus dem Profil abrufen
-        const { data: profileData, error: profileError } = await supabase
-            .from('profiles')
-            .select('active_hero_id')
-            .eq('user_id', state.user.id)
-            .single(); // Da es nur ein Profil pro Nutzer gibt
+        const activeHero = await fetchActiveHeroWithPurse();
 
-        if (profileError) {
-            // Es ist nicht unbedingt ein Fehler, wenn noch kein Profil existiert oder kein Held aktiv ist
-            // Aber wenn es ein echter Fehler ist, sollten wir ihn behandeln
-            console.warn("Fehler oder kein Profil gefunden:", profileError);
-            // Je nach Logik: Weitermachen mit activeHeroId = null
-        }
-        const activeHeroId = profileData?.active_hero_id || null; // Stellt sicher, dass es null ist, wenn nicht gesetzt
-
-        let activeHero = null;
-        if (activeHeroId) {
-             // Finde den aktiven Held in der bereits abgerufenen Liste
-             activeHero = heroes.find(h => h.id === activeHeroId);
-             // Optional: Extra-Check, falls der Held nicht in der Liste ist (z.B. gelöscht)
-             // if (!activeHero) { console.warn("Aktiver Held nicht in der Liste der eigenen Helden"); }
-        }
-
-        // 3. HTML generieren
-        let html = `
-            <div class="card">
-                <h2>Geld</h2>
-                <h3>Meine Helden</h3>
-                <div class="card" style="margin-bottom: 20px;">
-        `;
-
-        if (heroes.length > 0) {
-            html += `
-                <table class="table">
-                    <thead>
-                        <tr><th>Name</th><th>Status</th><th>Aktion</th></tr>
-                    </thead>
-                    <tbody>
-            `;
-            for (const h of heroes) {
-                html += `
-                    <tr>
-                        <td>${htmlesc(h.name)}</td>
-                        <td>${h.id === activeHeroId ? '<strong>Aktiv</strong>' : 'Inaktiv'}</td>
-                        <td>
-                            ${h.id === activeHeroId ? '-' : `<button class="btn secondary small set-active-btn" data-id="${h.id}">Aktivieren</button>`}
-                        </td>
-                    </tr>
-                `;
-            }
-            html += `
-                    </tbody>
-                </table>
-            `;
-        } else {
-            html += '<p>Du hast noch keine Helden erstellt.</p>';
-        }
-
-        html += '</div>'; // Schließt die Heldenliste card
+        let html = '<div class="card"><h2>Geld</h2>';
 
         if (activeHero) {
+            // *** Fall 1: Aktiver Held gefunden ***
             html += `
                 <h3>Geldbörse: ${htmlesc(activeHero.name)}</h3>
                 <div class="card">
@@ -179,38 +115,27 @@ export async function renderMoney() {
                 </div>
             `;
         } else {
-            html += '<p>Bitte aktiviere einen deiner Helden, um die Geldbörse zu sehen und zu bearbeiten.</p>';
+            // *** Fall 2: Kein aktiver Held ***
+            html += `
+                <div class="card">
+                   <p>Es ist kein Held als aktiv markiert.</p>
+                   <p>Bitte gehe zur <a href="#/heroes">Helden-Seite</a> und aktiviere einen deiner Helden, um hier seine Geldbörse zu verwalten.</p>
+                   <button class="btn" onclick="location.hash='#/heroes'">Zu den Helden</button>
+                </div>
+            `;
         }
 
         html += '</div>'; // Schließt die äußere card
-
         app.innerHTML = html;
 
-        // 4. Event Listener hinzufügen
-
-        // Aktiv-Buttons
-        document.querySelectorAll('.set-active-btn').forEach(button => {
-            button.addEventListener('click', async (e) => {
-                const heroId = e.target.getAttribute('data-id');
-                // Stelle sicher, dass heroId gültig ist
-                if (!heroId) {
-                    console.error("Ungültige Held ID für Aktivierung");
-                    return;
-                }
-                await setActiveHeroInProfile(heroId);
-                // Seite neu laden, um Änderungen widerzuspiegeln
-                await renderMoney();
-            });
-        });
-
-        // Formular zum Speichern der Geldbörse
+        // Event Listener nur hinzufügen, wenn das Formular existiert
         const form = document.getElementById('purse-form');
         if (form) {
             form.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const heroId = document.getElementById('purse-hero-id').value;
-                // Stelle sicher, dass heroId vom aktiven Helden kommt
-                if (!heroId || heroId !== activeHeroId) {
+                // Stelle sicher, dass heroId gültig ist
+                if (!heroId) {
                      alert("Ungültiger Held für die Geldbörse.");
                      return;
                 }
@@ -241,11 +166,10 @@ export async function renderMoney() {
 
     } catch (err) {
         console.error("Fehler in renderMoney:", err);
-        // Bessere Fehlermeldung an den Benutzer
         let errorMsg = "Ein unerwarteter Fehler ist aufgetreten.";
-        if (err.message && err.message.includes('column')) {
-            errorMsg += " Es scheint ein Problem mit der Datenbankkonfiguration zu geben.";
+        if (err.message) {
+            errorMsg += ` Details: ${err.message}`;
         }
-        app.innerHTML = `<div class="card"><h2>Geld</h2><p>${errorMsg}</p><p>Details: ${err.message}</p></div>`;
+        app.innerHTML = `<div class="card"><h2>Geld</h2><p>${errorMsg}</p></div>`;
     }
 }
