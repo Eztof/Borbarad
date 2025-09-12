@@ -1,5 +1,6 @@
 import { renderHome } from './home.js';
 import { renderHeroes } from './heroes.js';
+import { renderMoney } from './money.js';
 import { renderNSCs } from './nscs.js';
 import { renderObjects } from './objects.js';
 import { renderCalendar } from './calendar.js';
@@ -11,6 +12,7 @@ import { state, subscribe } from './state.js';
 const routes = {
   '#/home': renderHome,
   '#/heroes': renderHeroes,
+  '#/money': renderMoney,
   '#/nscs': renderNSCs,
   '#/objects': renderObjects,
   '#/calendar': renderCalendar,
