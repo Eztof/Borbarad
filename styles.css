@@ -141,3 +141,55 @@ select.input{padding-right:28px}
   .grid{grid-template-columns:1fr}
   .cal-grid{grid-template-columns:repeat(3,1fr)}
 }
+
+
+/* === Geldbörse UI === */
+
+/* Reihe für jede Münze */
+.purse-row {
+    margin-bottom: 16px;
+}
+
+.purse-row label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 500;
+}
+
+/* Container für Input und Buttons */
+.purse-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px; /* Abstand zwischen Elementen */
+}
+
+/* Eingabefeld */
+.purse-input {
+    flex-grow: 1; /* Nimmt den verfügbaren Platz ein */
+    text-align: center; /* Zentriert den Text/Wert im Input */
+    padding: 8px;
+    /* Optional: Breite begrenzen */
+    /* max-width: 100px; */
+}
+
+/* Plus/Minus Buttons */
+.purse-inc, .purse-dec {
+    width: 40px; /* Feste Breite */
+    height: 40px; /* Feste Höhe, quadratisch */
+    min-width: auto; /* Überschreibt eventuelle Standard-Btn-Breite */
+    padding: 0; /* Entfernt inneren Padding */
+    font-size: 18px; /* Größere Schrift für + und - */
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /* Optional: Runde Buttons */
+    /* border-radius: 50%; */
+}
+
+/* Optional: Runde Buttons */
+/*
+.purse-inc, .purse-dec {
+    border-radius: 50%;
+}
+*/

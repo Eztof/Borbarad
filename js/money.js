@@ -3,7 +3,7 @@ import { supabase } from './supabaseClient.js';
 import { state } from './state.js';
 import { htmlesc } from './utils.js'; // Stellen Sie sicher, dass der Pfad korrekt ist
 
-// Hilfsfunktion: Formatierung des Geldbetrags
+// Hilfsfunktion: Formatierung des Geldbetrags (für die Anzeige des Gesamtbetrags)
 function formatMoney(dukaten, silbertaler, heller, kreuzer) {
     const parts = [];
     if (dukaten > 0) parts.push(`${dukaten} Dukaten`);
@@ -69,7 +69,7 @@ async function updateHeroPurse(heroId, purseData) {
     return true;
 }
 
-// *** Haupt-Render-Funktion für die vereinfachte Geld-Seite ***
+// *** Haupt-Render-Funktion für die Geld-Seite mit verbessertem UI ***
 export async function renderMoney() {
     const app = document.getElementById('app');
     app.innerHTML = '<div class="card"><h2>Geld</h2><p>Lade aktiven Helden...</p></div>';
@@ -90,24 +90,50 @@ export async function renderMoney() {
                 <h3>Geldbörse: ${htmlesc(activeHero.name)}</h3>
                 <div class="card">
                     <p><strong>Aktueller Betrag:</strong> ${formatMoney(activeHero.purse_dukaten, activeHero.purse_silbertaler, activeHero.purse_heller, activeHero.purse_kreuzer)}</p>
+                    
                     <form id="purse-form">
                         <input type="hidden" id="purse-hero-id" value="${activeHero.id}" />
-                        <div class="row">
+                        
+                        <!-- Dukaten -->
+                        <div class="purse-row">
                             <label for="input-dukaten">Dukaten:</label>
-                            <input type="number" id="input-dukaten" class="input" value="${activeHero.purse_dukaten}" min="0">
+                            <div class="purse-controls">
+                                <button type="button" class="btn secondary small purse-dec" data-target="input-dukaten">−</button>
+                                <input type="number" id="input-dukaten" class="input purse-input" value="${activeHero.purse_dukaten}" min="0">
+                                <button type="button" class="btn secondary small purse-inc" data-target="input-dukaten">+</button>
+                            </div>
                         </div>
-                        <div class="row">
+
+                        <!-- Silbertaler -->
+                        <div class="purse-row">
                             <label for="input-silbertaler">Silbertaler:</label>
-                            <input type="number" id="input-silbertaler" class="input" value="${activeHero.purse_silbertaler}" min="0">
+                            <div class="purse-controls">
+                                <button type="button" class="btn secondary small purse-dec" data-target="input-silbertaler">−</button>
+                                <input type="number" id="input-silbertaler" class="input purse-input" value="${activeHero.purse_silbertaler}" min="0">
+                                <button type="button" class="btn secondary small purse-inc" data-target="input-silbertaler">+</button>
+                            </div>
                         </div>
-                        <div class="row">
+
+                        <!-- Heller -->
+                        <div class="purse-row">
                             <label for="input-heller">Heller:</label>
-                            <input type="number" id="input-heller" class="input" value="${activeHero.purse_heller}" min="0">
+                            <div class="purse-controls">
+                                <button type="button" class="btn secondary small purse-dec" data-target="input-heller">−</button>
+                                <input type="number" id="input-heller" class="input purse-input" value="${activeHero.purse_heller}" min="0">
+                                <button type="button" class="btn secondary small purse-inc" data-target="input-heller">+</button>
+                            </div>
                         </div>
-                        <div class="row">
+
+                        <!-- Kreuzer -->
+                        <div class="purse-row">
                             <label for="input-kreuzer">Kreuzer:</label>
-                            <input type="number" id="input-kreuzer" class="input" value="${activeHero.purse_kreuzer}" min="0">
+                            <div class="purse-controls">
+                                <button type="button" class="btn secondary small purse-dec" data-target="input-kreuzer">−</button>
+                                <input type="number" id="input-kreuzer" class="input purse-input" value="${activeHero.purse_kreuzer}" min="0">
+                                <button type="button" class="btn secondary small purse-inc" data-target="input-kreuzer">+</button>
+                            </div>
                         </div>
+
                         <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
                             <button type="submit" class="btn">Speichern</button>
                         </div>
@@ -131,6 +157,25 @@ export async function renderMoney() {
         // Event Listener nur hinzufügen, wenn das Formular existiert
         const form = document.getElementById('purse-form');
         if (form) {
+            
+            // *** NEU: Event Listener für Plus/Minus Buttons ***
+            form.querySelectorAll('.purse-inc, .purse-dec').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    const targetId = e.target.getAttribute('data-target');
+                    const input = document.getElementById(targetId);
+                    if (input) {
+                        let value = parseInt(input.value, 10) || 0;
+                        if (e.target.classList.contains('purse-inc')) {
+                            value += 1;
+                        } else if (e.target.classList.contains('purse-dec')) {
+                            value = Math.max(0, value - 1); // Verhindert negative Werte
+                        }
+                        input.value = value;
+                    }
+                });
+            });
+
+            // Formular Submit Handler
             form.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const heroId = document.getElementById('purse-hero-id').value;
@@ -144,7 +189,7 @@ export async function renderMoney() {
                 const heller = parseInt(document.getElementById('input-heller').value, 10) || 0;
                 const kreuzer = parseInt(document.getElementById('input-kreuzer').value, 10) || 0;
 
-                // Validierung (optional)
+                // Validierung (optional, bereits durch Minus-Button-Logik eingeschränkt)
                 if (dukaten < 0 || silbertaler < 0 || heller < 0 || kreuzer < 0) {
                     alert("Bitte geben Sie nur positive Zahlen ein.");
                     return;
