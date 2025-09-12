@@ -156,12 +156,6 @@ export async function renderHeroes() {
                     console.error("Keine Held ID für Aktivierung gefunden.");
                     return;
                 }
-
-                // Optional: Bestätigungsdialog
-                if (!confirm(`Soll "${heroName}" jetzt als aktiver Held festgelegt werden?`)) {
-                    return;
-                }
-
                 try {
                     // Aktiven Helden im Profil setzen
                     await setActiveHeroInProfile(heroId);

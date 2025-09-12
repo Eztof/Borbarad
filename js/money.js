@@ -1,10 +1,43 @@
 // js/money.js
 import { supabase } from './supabaseClient.js';
 import { state } from './state.js';
-import { htmlesc } from './utils.js'; // Stellen Sie sicher, dass der Pfad korrekt ist
+import { htmlesc } from './utils.js';
 
 // Hilfsfunktion: Formatierung des Geldbetrags (für die Anzeige des Gesamtbetrags)
-function formatMoney(dukaten, silbertaler, heller, kreuzer) {
+// *** Dynamische Gesamtsummenanzeige ***
+function formatTotalMoney(dukaten, silbertaler, heller, kreuzer) {
+    // Umrechnung in kleinste Einheit (Kreuzer)
+    const totalInKreuzer = (dukaten * 10 * 10 * 10) + (silbertaler * 10 * 10) + (heller * 10) + kreuzer;
+
+    if (totalInKreuzer === 0) {
+        return "0 Kreuzer";
+    } else if (totalInKreuzer < 100) {
+        // Weniger als 100 Kreuzer -> zeige in Kreuzer
+        return `${totalInKreuzer} Kreuzer`;
+    } else if (totalInKreuzer < 100 * 10) {
+        // Weniger als 100 Heller (1000 Kreuzer) -> zeige in Heller
+        const totalInHeller = totalInKreuzer / 10.0;
+        // Zeige eine Nachkommastelle, wenn nicht ganzzahlig
+        return `${Number.isInteger(totalInHeller) ? totalInHeller : totalInHeller.toFixed(1)} Heller`;
+    } else if (totalInKreuzer < 100 * 10 * 10) {
+        // Weniger als 100 Silbertaler (10000 Kreuzer) -> zeige in Silbertaler
+        const totalInSilbertaler = totalInKreuzer / (10.0 * 10.0);
+        // Zeige eine Nachkommastelle, wenn nicht ganzzahlig
+        return `${Number.isInteger(totalInSilbertaler) ? totalInSilbertaler : totalInSilbertaler.toFixed(1)} Silbertaler`;
+    } else {
+        // 100 Silbertaler oder mehr -> zeige in Dukaten, wenn >= 1000, sonst Silbertaler
+        const totalInSilbertaler = totalInKreuzer / (10.0 * 10.0);
+        if (totalInSilbertaler >= 1000) {
+             const totalInDukaten = totalInKreuzer / (10.0 * 10.0 * 10.0);
+             return `${Number.isInteger(totalInDukaten) ? totalInDukaten : totalInDukaten.toFixed(1)} Dukaten`;
+        } else {
+            return `${Number.isInteger(totalInSilbertaler) ? totalInSilbertaler : totalInSilbertaler.toFixed(1)} Silbertaler`;
+        }
+    }
+}
+
+// Hilfsfunktion: Formatierung der detaillierten Aufstellung (wie vorher)
+function formatDetailedMoney(dukaten, silbertaler, heller, kreuzer) {
     const parts = [];
     if (dukaten > 0) parts.push(`${dukaten} Dukaten`);
     if (silbertaler > 0) parts.push(`${silbertaler} Silbertaler`);
@@ -69,7 +102,7 @@ async function updateHeroPurse(heroId, purseData) {
     return true;
 }
 
-// *** Haupt-Render-Funktion für die Geld-Seite mit verbessertem UI ***
+// *** Haupt-Render-Funktion für die Geld-Seite mit verbesserter Gesamtsummenanzeige ***
 export async function renderMoney() {
     const app = document.getElementById('app');
     app.innerHTML = '<div class="card"><h2>Geld</h2><p>Lade aktiven Helden...</p></div>';
@@ -86,10 +119,28 @@ export async function renderMoney() {
 
         if (activeHero) {
             // *** Fall 1: Aktiver Held gefunden ***
+            // *** Dynamische Gesamtsumme ***
+            const totalFormatted = formatTotalMoney(
+                activeHero.purse_dukaten,
+                activeHero.purse_silbertaler,
+                activeHero.purse_heller,
+                activeHero.purse_kreuzer
+            );
+            const detailedFormatted = formatDetailedMoney(
+                activeHero.purse_dukaten,
+                activeHero.purse_silbertaler,
+                activeHero.purse_heller,
+                activeHero.purse_kreuzer
+            );
+
             html += `
                 <h3>Geldbörse: ${htmlesc(activeHero.name)}</h3>
                 <div class="card">
-                    <p><strong>Aktueller Betrag:</strong> ${formatMoney(activeHero.purse_dukaten, activeHero.purse_silbertaler, activeHero.purse_heller, activeHero.purse_kreuzer)}</p>
+                    <!-- *** Gestylter Container für die Gesamtsumme *** -->
+                    <div class="purse-total-display">
+                        <strong>Gesamt:</strong> ${totalFormatted}
+                    </div>
+                    <p><strong>Aufstellung:</strong> ${detailedFormatted}</p>
                     
                     <form id="purse-form">
                         <input type="hidden" id="purse-hero-id" value="${activeHero.id}" />
@@ -158,7 +209,7 @@ export async function renderMoney() {
         const form = document.getElementById('purse-form');
         if (form) {
             
-            // *** NEU: Event Listener für Plus/Minus Buttons ***
+            // *** Event Listener für Plus/Minus Buttons ***
             form.querySelectorAll('.purse-inc, .purse-dec').forEach(button => {
                 button.addEventListener('click', (e) => {
                     const targetId = e.target.getAttribute('data-target');
@@ -202,7 +253,6 @@ export async function renderMoney() {
                     purse_kreuzer: kreuzer
                 });
                 if (success) {
-                    alert('Geldbörse erfolgreich gespeichert.');
                     // Seite neu laden, um aktualisierte Werte anzuzeigen
                     await renderMoney();
                 }
