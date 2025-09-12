@@ -1,6 +1,6 @@
 import { supabase } from './supabaseClient.js';
 import { state } from './state.js';
-import { htmlesc } from './util.js';
+import { htmlesc } from './utils.js';
 
 // Hilfsfunktion: Formatierung des Geldbetrags
 function formatMoney(dukaten, silbertaler, heller, kreuzer) {
