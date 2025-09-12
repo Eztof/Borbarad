@@ -95,24 +95,6 @@ function mobileCard(o) {
           <strong>${htmlesc(o.name)}</strong>
         </div>
       </div>
-      <div class="mobile-card-body">
-        <div class="mobile-card-item">
-          <span class="mobile-card-label">Tags:</span>
-          <span class="mobile-card-value">${htmlesc(o.tags||'–')}</span>
-        </div>
-        <div class="mobile-card-item">
-          <span class="mobile-card-label">Erstes Auftauchen:</span>
-          <span class="mobile-card-value">${o.first_seen ? formatAvDate(o.first_seen) : '–'}</span>
-        </div>
-        <div class="mobile-card-item">
-          <span class="mobile-card-label">Letztes Auftauchen:</span>
-          <span class="mobile-card-value">${o.last_seen ? formatAvDate(o.last_seen) : '–'}</span>
-        </div>
-        <div class="mobile-card-item">
-          <span class="mobile-card-label">Ort:</span>
-          <span class="mobile-card-value">${htmlesc(o.location||'–')}</span>
-        </div>
-      </div>
       <div class="mobile-card-footer">
         <button class="btn secondary mobile-card-btn">Details</button>
       </div>

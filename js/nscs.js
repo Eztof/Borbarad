@@ -97,24 +97,6 @@ function mobileCard(n) {
           <strong>${htmlesc(n.name)}</strong>
         </div>
       </div>
-      <div class="mobile-card-body">
-        <div class="mobile-card-item">
-          <span class="mobile-card-label">Tags:</span>
-          <span class="mobile-card-value">${htmlesc(n.tags||'–')}</span>
-        </div>
-        <div class="mobile-card-item">
-          <span class="mobile-card-label">Erste Begegnung:</span>
-          <span class="mobile-card-value">${n.first_encounter ? formatAvDate(n.first_encounter) : '–'}</span>
-        </div>
-        <div class="mobile-card-item">
-          <span class="mobile-card-label">Letzte Begegnung:</span>
-          <span class="mobile-card-value">${n.is_active ? formatAvDate(state.campaignDate) : (n.last_encounter ? formatAvDate(n.last_encounter) : '–')}</span>
-        </div>
-        <div class="mobile-card-item">
-          <span class="mobile-card-label">Verbleib:</span>
-          <span class="mobile-card-value">${htmlesc(n.whereabouts||'–')}</span>
-        </div>
-      </div>
       <div class="mobile-card-footer">
         <button class="btn secondary mobile-card-btn">Details</button>
       </div>
