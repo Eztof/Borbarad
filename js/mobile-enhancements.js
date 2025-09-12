@@ -10,7 +10,7 @@ class MobileEnhancements {
     this.addViewportMeta();
     this.handleTouchEvents();
     this.improveTableScrolling();
-    this.addPullToRefresh();
+    // this.addPullToRefresh(); Entfernt: Pull-to-Refresh Funktionalität
     this.optimizeModals();
     this.addScrollToTop();
     this.handleOrientationChanges();
@@ -138,81 +138,11 @@ class MobileEnhancements {
 
   // Pull-to-Refresh Funktionalität
   addPullToRefresh() {
-    if ('serviceWorker' in navigator) {
-      let startY = 0;
-      let currentY = 0;
-      let refreshing = false;
-      
-      const refreshIndicator = document.createElement('div');
-      refreshIndicator.className = 'pull-to-refresh';
-      refreshIndicator.innerHTML = '⟳ Ziehen zum Aktualisieren';
-      refreshIndicator.style.cssText = `
-        position: fixed;
-        top: -60px;
-        left: 0;
-        right: 0;
-        height: 60px;
-        background: var(--accent);
-        color: white;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 14px;
-        transition: transform 0.3s ease;
-        z-index: 1001;
-      `;
-      document.body.appendChild(refreshIndicator);
-
-      document.addEventListener('touchstart', (e) => {
-        if (window.scrollY === 0 && !refreshing) {
-          startY = e.touches[0].clientY;
-        }
-      });
-
-      document.addEventListener('touchmove', (e) => {
-        if (window.scrollY === 0 && startY && !refreshing) {
-          currentY = e.touches[0].clientY;
-          const pullDistance = currentY - startY;
-          
-          if (pullDistance > 0) {
-            e.preventDefault();
-            const progress = Math.min(pullDistance / 100, 1);
-            refreshIndicator.style.transform = `translateY(${Math.min(pullDistance, 100)}px)`;
-            refreshIndicator.style.opacity = progress;
-            
-            if (pullDistance > 80) {
-              refreshIndicator.innerHTML = '↻ Loslassen zum Aktualisieren';
-            } else {
-              refreshIndicator.innerHTML = '⟳ Ziehen zum Aktualisieren';
-            }
-          }
-        }
-      });
-
-      document.addEventListener('touchend', (e) => {
-        if (startY && currentY && !refreshing) {
-          const pullDistance = currentY - startY;
-          
-          if (pullDistance > 80) {
-            refreshing = true;
-            refreshIndicator.innerHTML = '🔄 Aktualisiere...';
-            refreshIndicator.style.transform = 'translateY(60px)';
-            
-            // Seite neu laden nach kurzer Verzögerung
-            setTimeout(() => {
-              window.location.reload();
-            }, 1000);
-          } else {
-            refreshIndicator.style.transform = '';
-            refreshIndicator.style.opacity = '';
-          }
-          
-          startY = 0;
-          currentY = 0;
-        }
-      });
-    }
-  }
+  // Pull-to-Refresh wurde entfernt.
+  // Diese Funktion ist jetzt absichtlich leer.
+  console.log('Pull-to-Refresh ist deaktiviert.');
+  // Der ursprüngliche Code für Pull-to-Refresh ist auskommentiert oder gelöscht.
+}
 
   // Modal-Verbesserungen für Mobile
   optimizeModals() {
