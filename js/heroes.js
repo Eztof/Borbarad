@@ -263,7 +263,7 @@ function showAddHero() {
         try {
             await createHero(hero);
             root.remove();
-            location.hash = '#/heroes'; // Seite neu laden
+            await renderHeroes(); // Seite neu laden
         } catch (error) {
             alert(error.message);
         }
