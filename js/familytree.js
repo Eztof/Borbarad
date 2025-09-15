@@ -197,7 +197,6 @@ export async function renderFamilyTree() {
                     <h4 style="margin:0 0 8px 0">Bedienungshinweise</h4>
                     <p><strong>Desktop:</strong> Klicken und ziehen, um die Ansicht zu verschieben. Klicken und ziehen auf eine Karte, um sie zu bewegen. Doppelklick auf eine Karte, um sie zu bearbeiten. Rechtsklick auf eine Karte, um sie zu löschen.</p>
                     <p><strong>Mobil:</strong> Tippen und halten, um eine Karte zu verschieben. Doppeltippen, um eine Karte zu bearbeiten. Langes Tippen (1 Sekunde) auf eine Karte, um eine Verbindung zu einer anderen Karte zu erstellen.</p>
-                    <p><strong>Allgemein:</strong> Verwende die + und - Buttons, um hinein- oder herauszuzoomen.</p>
                 </div>
             </div>
         `;
