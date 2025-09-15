@@ -185,23 +185,22 @@ function row(d){
   </tr>`;
 }
 
-// Card-Ansicht für Mobile
+// Card-Ansicht für Mobile - GEÄNDERT: Ganze Karte ist klickbar, kein separater Button
 function mobileCard(d) {
   return `
-    <div class="mobile-card" data-id="${d.id}">
+    <div class="mobile-card" data-id="${d.id}" style="cursor: pointer;">
       <div class="mobile-card-header">
         <h3>${htmlesc(d.title)}</h3>
       </div>
       <div class="mobile-card-body">
         <div class="mobile-card-item">
+          <span class="mobile-card-label">Datum:</span>
           <span class="mobile-card-value">${formatAvDate(d.av_date)}</span>
         </div>
         <div class="mobile-card-item">
+          <span class="mobile-card-label">Autor:</span>
           <span class="mobile-card-value">${htmlesc(d.author_name||'Unbekannt')}</span>
         </div>
-      </div>
-      <div class="mobile-card-footer">
-        <button class="btn secondary mobile-card-btn">Lesen</button>
       </div>
     </div>
   `;
@@ -283,12 +282,12 @@ export async function renderDiary(){
     });
   }
 
-  // Klick-Event für Mobile
+  // Klick-Event für Mobile - GEÄNDERT: Klick auf die gesamte Karte, nicht nur den Button
   mobileView.addEventListener('click', async (e) => {
     const card = e.target.closest('.mobile-card');
     if (!card) return;
-    
-    if (e.target.classList.contains('mobile-card-btn')) {
+    // Prüfen, ob der Klick innerhalb der Karte war (auch wenn nicht direkt auf .mobile-card)
+    if (card.contains(e.target)) {
       const id = card.dataset.id;
       const entry = await getDiaryById(id);
       showDiaryEntry(entry);
