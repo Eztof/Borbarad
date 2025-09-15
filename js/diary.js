@@ -89,9 +89,23 @@ async function fetchDiary(){
   const { data, error } = await supabase
     .from('diary')
     .select('id,title,av_date,tags,created_at,updated_at,author_name,user_id')
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false }); // Dies wird ignoriert, da clientseitige Sortierung nötig ist
   if (error){ console.error(error); return []; }
-  return data;
+  // Clientseitige Sortierung nach aventurischem Datum (neueste zuerst)
+  // av_date ist ein Objekt: { year, month, day }
+  // Um in absteigender Reihenfolge (neueste oben) zu sortieren, subtrahieren wir das ältere vom neueren Datum.
+  return (data || []).sort((a, b) => {
+    // Hilfsfunktion, um ein av_date-Objekt in eine vergleichbare Zahl umzuwandeln
+    const dateToNumber = (av) => {
+      if (!av || av.year == null || av.month == null || av.day == null) {
+        return 0; // Ungültige Daten werden ganz nach unten sortiert
+      }
+      return (av.year * 10000) + (av.month * 100) + av.day;
+    };
+    const numA = dateToNumber(a.av_date);
+    const numB = dateToNumber(b.av_date);
+    return numB - numA; // Absteigend: Neueste (größere Zahl) zuerst
+  });
 }
 
 async function getDiaryById(id){
