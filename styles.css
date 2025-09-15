@@ -257,3 +257,29 @@ select.input{padding-right:28px}
     gap: 8px;
     justify-content: flex-end;
 }
+
+/* ===== Interaktiver Stammbaum ===== */
+#canvas-container {
+    position: relative;
+    width: 100%;
+    height: 70vh;
+    overflow: hidden;
+    background: #1a1218;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    margin-top: 16px;
+}
+
+#family-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    cursor: grab;
+    user-select: none;
+}
+
+#family-canvas:active {
+    cursor: grabbing;
+}
