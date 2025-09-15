@@ -81,9 +81,20 @@ async function addFamilyRelation(heroId, nscId, relationType, notes, x, y, sourc
             position_x: x,
             position_y: y,
             connection_type: 'line',
-            source_id: sourceId // Erlaubt Verbindungen zwischen NSCs
+            source_id: sourceId
         }])
-        .select();
+        .select(`
+            id,
+            hero_id,
+            nsc_id,
+            relation_type,
+            notes,
+            position_x,
+            position_y,
+            connection_type,
+            source_id,
+            nscs: nsc_id (id, name)
+        `); // *** WICHTIG: Nach dem INSERT auch nscs laden, damit der Name direkt verfügbar ist ***
     if (error) {
         throw error;
     }
@@ -114,7 +125,7 @@ async function deleteFamilyRelation(relationId) {
 
 // Bearbeiten einer Beziehung
 async function updateFamilyRelation(relationId, relationType, notes, connectionType, sourceId) {
-    const { error } = await supabase
+    const { data, error } = await supabase
         .from('family_tree')
         .update({
             relation_type: relationType,
@@ -122,10 +133,23 @@ async function updateFamilyRelation(relationId, relationType, notes, connectionT
             connection_type: connectionType,
             source_id: sourceId
         })
-        .eq('id', relationId);
+        .eq('id', relationId)
+        .select(`
+            id,
+            hero_id,
+            nsc_id,
+            relation_type,
+            notes,
+            position_x,
+            position_y,
+            connection_type,
+            source_id,
+            nscs: nsc_id (id, name)
+        `); // *** WICHTIG: Nach dem UPDATE auch nscs laden, damit der Name direkt verfügbar ist ***
     if (error) {
         throw error;
     }
+    return data[0];
 }
 
 /* ============ UI ============ */
@@ -169,8 +193,11 @@ export async function renderFamilyTree() {
                 <div id="canvas-container" style="position:relative;width:100%;height:70vh;overflow:hidden;background:#1a1218;border:1px solid var(--line);border-radius:12px;">
                     <canvas id="family-canvas" style="position:absolute;top:0;left:0;width:100%;height:100%;cursor:grab;"></canvas>
                 </div>
-                <div style="margin-top:16px;text-align:center;font-size:14px;color:var(--muted);">
-                    <p><strong>Bedienung:</strong> Karte antippen und halten, um sie zu verschieben. Doppeltippen, um zu bearbeiten. Langes Tippen, um Verbindung zu erstellen.</p>
+                <div style="margin-top:16px;padding:12px;background:var(--panel-soft);border-radius:8px;font-size:14px;color:var(--muted);">
+                    <h4 style="margin:0 0 8px 0">Bedienungshinweise</h4>
+                    <p><strong>Desktop:</strong> Klicken und ziehen, um die Ansicht zu verschieben. Klicken und ziehen auf eine Karte, um sie zu bewegen. Doppelklick auf eine Karte, um sie zu bearbeiten. Rechtsklick auf eine Karte, um sie zu löschen.</p>
+                    <p><strong>Mobil:</strong> Tippen und halten, um eine Karte zu verschieben. Doppeltippen, um eine Karte zu bearbeiten. Langes Tippen (1 Sekunde) auf eine Karte, um eine Verbindung zu einer anderen Karte zu erstellen.</p>
+                    <p><strong>Allgemein:</strong> Verwende die + und - Buttons, um hinein- oder herauszuzoomen.</p>
                 </div>
             </div>
         `;
@@ -205,6 +232,15 @@ export async function renderFamilyTree() {
             hero: activeHero,
             nscs: nscs
         };
+
+        // Berechne den Mittelpunkt der Canvas und setze den Offset so, dass der Held in der Mitte erscheint
+        function centerHero() {
+            const rect = canvas.getBoundingClientRect();
+            const centerX = rect.width / 2;
+            const centerY = rect.height / 2;
+            state.offsetX = centerX;
+            state.offsetY = centerY;
+        }
 
         // Zeichnet den gesamten Stammbaum
         function draw() {
@@ -378,7 +414,7 @@ export async function renderFamilyTree() {
                 state.longPressTimer = setTimeout(() => {
                     state.startCardForConnection = card;
                     alert(`Wähle das Ziel für die Verbindung von "${card.nscs?.name || 'NSC'}" aus.`);
-                }, 1000); // 1 Sekunde Long Press
+                }, 1000);
             } else {
                 state.isPanning = true;
                 state.lastX = touch.clientX;
@@ -407,7 +443,6 @@ export async function renderFamilyTree() {
                 state.selectedCard.position_x += deltaX;
                 state.selectedCard.position_y += deltaY;
 
-                // Speichere Position in DB
                 updateCardPosition(state.selectedCard.id, state.selectedCard.position_x, state.selectedCard.position_y)
                     .catch(err => console.error("Fehler beim Speichern der Position:", err));
 
@@ -438,13 +473,12 @@ export async function renderFamilyTree() {
                 const targetCard = getCardAt(canvasX, canvasY);
 
                 if (targetCard && targetCard.id !== state.startCardForConnection.id) {
-                    // Verbindung zwischen zwei NSCs erstellen
                     showAddRelationModal(
                         state.hero.id,
                         state.nscs,
                         state,
-                        state.startCardForConnection.id, // source_id
-                        targetCard.nsc_id // nsc_id für das Ziel
+                        state.startCardForConnection.id,
+                        targetCard.nsc_id
                     );
                 } else {
                     alert('Bitte wähle eine andere Karte als Ziel aus.');
@@ -529,7 +563,7 @@ export async function renderFamilyTree() {
             const canvasY = e.clientY - rect.top;
             const card = getCardAt(canvasX, canvasY);
             if (card) {
-                showEditRelationModal(card, state.nscs, state, draw); // draw-Funktion übergeben
+                showEditRelationModal(card, state.nscs, state, draw);
             }
         });
 
@@ -544,7 +578,7 @@ export async function renderFamilyTree() {
                 const canvasY = touch.clientY - rect.top;
                 const card = getCardAt(canvasX, canvasY);
                 if (card) {
-                    showEditRelationModal(card, state.nscs, state, draw); // draw-Funktion übergeben
+                    showEditRelationModal(card, state.nscs, state, draw);
                 }
             }
             lastTap = currentTime;
@@ -582,10 +616,11 @@ export async function renderFamilyTree() {
 
         // Hinzufügen einer neuen Beziehung
         document.getElementById('btn-add-relation').addEventListener('click', () => {
-            showAddRelationModal(state.hero.id, state.nscs, state, null, null, draw); // draw-Funktion übergeben
+            showAddRelationModal(state.hero.id, state.nscs, state, null, null, draw);
         });
 
-        // Initiales Zeichnen
+        // Initiales Zeichnen und Helden zentrieren
+        centerHero(); // *** WICHTIG: Held wird beim Laden in der Mitte positioniert ***
         draw();
 
     } catch (err) {
@@ -630,7 +665,6 @@ function showAddRelationModal(heroId, nscs, state, sourceId = null, preselectedN
             let initialX = 200;
             let initialY = 0;
             if (sourceId) {
-                // Wenn es eine Verbindung zwischen NSCs ist, platziere die neue Karte relativ zur Quelle
                 const sourceCard = state.relations.find(r => r.id === sourceId);
                 if (sourceCard) {
                     initialX = (sourceCard.position_x || 0) + 150;
@@ -660,10 +694,9 @@ function showEditRelationModal(relation, nscs, state, drawCallback) {
         <option value="arrow" ${relation.connection_type === 'arrow' ? 'selected' : ''}>Pfeil</option>
     `;
 
-    // Optionen für Quell-NSC (für Verbindungen zwischen NSCs)
     const sourceOptions = `<option value="">Mit Helden verbinden</option>` +
         state.relations
-            .filter(r => r.id !== relation.id) // Nicht mit sich selbst verbinden
+            .filter(r => r.id !== relation.id)
             .map(r => `<option value="${r.id}" ${r.id === relation.source_id ? 'selected' : ''}>${htmlesc(r.nscs?.name || 'Unbekannt')}</option>`)
             .join('');
 
@@ -699,7 +732,7 @@ function showEditRelationModal(relation, nscs, state, drawCallback) {
         const nscId = document.getElementById('nsc-select').value;
         const relationType = document.getElementById('relation-type').value.trim();
         const connectionType = document.getElementById('connection-type').value;
-        const sourceId = document.getElementById('source-select').value || null; // Kann null sein (Verbindung zum Helden)
+        const sourceId = document.getElementById('source-select').value || null;
         const notes = document.getElementById('relation-notes').value.trim();
 
         if (!nscId) {
@@ -712,15 +745,11 @@ function showEditRelationModal(relation, nscs, state, drawCallback) {
         }
 
         try {
-            await updateFamilyRelation(relation.id, relationType, notes, connectionType, sourceId);
-            // Aktualisiere den lokalen Zustand
-            const updatedRelation = state.relations.find(r => r.id === relation.id);
-            if (updatedRelation) {
-                updatedRelation.nsc_id = nscId;
-                updatedRelation.relation_type = relationType;
-                updatedRelation.notes = notes;
-                updatedRelation.connection_type = connectionType;
-                updatedRelation.source_id = sourceId;
+            const updatedRelation = await updateFamilyRelation(relation.id, relationType, notes, connectionType, sourceId);
+            // Aktualisiere den lokalen Zustand mit den neuen Daten (inkl. neu geladenem NSC-Namen)
+            const index = state.relations.findIndex(r => r.id === relation.id);
+            if (index !== -1) {
+                state.relations[index] = updatedRelation;
             }
             if (drawCallback) drawCallback();
             root.innerHTML = '';
