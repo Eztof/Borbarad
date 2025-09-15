@@ -2,14 +2,13 @@
 import { supabase } from './supabaseClient.js';
 import { state } from './state.js';
 import { section, empty, modal, formRow } from './components.js';
-import { htmlesc } from './utils.js'; // Korrigierter Import-Pfad
+import { htmlesc } from './utils.js';
 
 /* ============ API ============ */
-
 async function listHeroes() {
     const { data, error } = await supabase
         .from('heroes')
-        .select('id,name,species,profession,notes,ap_total,lp_current,lp_max')
+        .select('id,name,species,profession,notes,ap_total,lp_current,lp_max,user_id') // << user_id hinzugefügt
         .order('created_at', { ascending: false });
     if (error) {
         console.error(error);
@@ -40,15 +39,12 @@ async function setActiveHeroInProfile(heroId) {
         .from('profiles')
         .update({ active_hero_id: heroId })
         .eq('user_id', state.user.id);
-
     if (error) {
         console.error("Fehler beim Setzen des aktiven Helden:", error);
         alert("Fehler beim Aktivieren des Helden.");
-        throw error; // Werfen Sie den Fehler weiter, um ihn in renderHeroes zu behandeln
+        throw error;
     } else {
         console.log(`Aktiver Held auf ${heroId} gesetzt.`);
-        // Optional: Globale State-Variable aktualisieren, falls vorhanden
-        // state.activeHeroId = heroId;
     }
 }
 
@@ -63,24 +59,29 @@ async function getActiveHeroId() {
         .select('active_hero_id')
         .eq('user_id', state.user.id)
         .single();
-
     if (error) {
-        // Es ist nicht unbedingt ein Fehler, wenn noch kein Profil existiert
         console.warn("Fehler beim Abrufen des aktiven Helden aus dem Profil:", error);
         return null;
     }
     return data?.active_hero_id || null;
 }
 
-
 /* ============ UI ============ */
-// Funktion für die Desktop-Tabelle
 function heroRow(h, activeHeroId) {
+    // Bestimme, ob dieser Held der aktive Held ist
     const isActive = h.id === activeHeroId;
     const statusText = isActive ? '<strong style="color: #4CAF50;">Aktiv</strong>' : 'Inaktiv';
+
+    // Nur der Besitzer des Helden darf ihn bearbeiten/aktivieren
+    const isOwner = state.user?.id && h.user_id === state.user.id;
+
+    // Zeige den "Aktivieren"-Button nur, wenn der Held nicht aktiv ist UND der Benutzer der Besitzer ist
     const actionCell = isActive ?
         '<td><em>-</em></td>' :
-        `<td><button class="btn secondary small set-hero-active-btn" data-id="${h.id}" data-name="${htmlesc(h.name)}">Aktivieren</button></td>`;
+        (isOwner ?
+            `<td><button class="btn secondary small set-hero-active-btn" data-id="${h.id}" data-name="${htmlesc(h.name)}">Aktivieren</button></td>` :
+            '<td><em>-</em></td>');
+
     return `<tr data-id="${h.id}" class="hero-row">
         <td><strong>${htmlesc(h.name)}</strong></td>
         <td>${htmlesc(h.species || '')}</td>
@@ -93,10 +94,16 @@ function heroRow(h, activeHeroId) {
     </tr>`;
 }
 
-// NEUE Funktion: Card-Ansicht für Mobile
+// Card-Ansicht für Mobile
 function mobileCard(h, activeHeroId) {
     const isActive = h.id === activeHeroId;
     const statusText = isActive ? 'Aktiv' : 'Inaktiv';
+
+    // Nur der Besitzer des Helden darf ihn bearbeiten/aktivieren
+    const isOwner = state.user?.id && h.user_id === state.id;
+
+    // Wir fügen keine Buttons hinzu, da der Klick auf die gesamte Karte die `showEditHero`-Funktion aufruft.
+    // Die Logik, ob der Benutzer berechtigt ist, wird in `showEditHero` geprüft.
     return `
         <div class="mobile-card" data-id="${h.id}" style="cursor: pointer;">
             <div class="mobile-card-header">
@@ -138,7 +145,7 @@ export async function renderHeroes() {
     try {
         const items = await listHeroes();
         const activeHeroId = await getActiveHeroId();
-        // HTML generieren - Mobile View verwendet jetzt mobileCard
+
         const html = `<div class="card">
             ${section('Helden', `<button class="btn" id="add-hero">+ Held</button>`)}
             <div id="desktop-view" class="card">
@@ -168,10 +175,12 @@ export async function renderHeroes() {
             </div>
         </div>`;
         app.innerHTML = html;
+
         // Mobile/Desktop View Toggle
         const desktopView = document.getElementById('desktop-view');
         const mobileView = document.getElementById('mobile-view');
         const tbody = document.getElementById('heroes-tbody');
+
         function updateView() {
             if (window.innerWidth <= 768) {
                 desktopView.style.display = 'none';
@@ -183,8 +192,10 @@ export async function renderHeroes() {
         }
         updateView();
         window.addEventListener('resize', updateView);
+
         // Button: Neuen Helden anlegen
         document.getElementById('add-hero').onclick = () => showAddHero();
+
         // Event Listener für Desktop (Tabelle)
         if (tbody) {
             tbody.addEventListener('click', (e) => {
@@ -196,15 +207,21 @@ export async function renderHeroes() {
                     if (!heroId) return;
                     handleActivateHero(heroId, heroName);
                 }
-                // Zeile anklicken -> Helden bearbeiten
+                // Zeile anklicken -> Helden bearbeiten (nur wenn Besitzer)
                 const tr = e.target.closest('tr.hero-row');
                 if (tr && !e.target.classList.contains('set-hero-active-btn')) {
                     const id = tr.dataset.id;
                     const hero = items.find(x => x.id === id);
-                    if (hero) showEditHero(hero); // NEUE Funktion: Helden bearbeiten
+                    if (hero && isHeroOwner(hero)) {
+                        showEditHero(hero);
+                    } else if (hero) {
+                        // Optional: Feedback geben, dass der Benutzer keine Berechtigung hat
+                        alert('Du kannst nur deine eigenen Helden bearbeiten.');
+                    }
                 }
             });
         }
+
         // Event Listener für Mobile (Karten)
         mobileView.addEventListener('click', (e) => {
             const card = e.target.closest('.mobile-card');
@@ -212,7 +229,12 @@ export async function renderHeroes() {
             if (card.contains(e.target)) {
                 const id = card.dataset.id;
                 const hero = items.find(x => x.id === id);
-                if (hero) showEditHero(hero); // NEUE Funktion: Helden bearbeiten
+                if (hero && isHeroOwner(hero)) {
+                    showEditHero(hero);
+                } else if (hero) {
+                    // Optional: Feedback geben
+                    alert('Du kannst nur deine eigenen Helden bearbeiten.');
+                }
             }
         });
     } catch (err) {
@@ -221,8 +243,121 @@ export async function renderHeroes() {
     }
 }
 
-/* ============ Helden anlegen ============ */
+/* Hilfsfunktion: Prüft, ob der aktuelle Benutzer der Besitzer des Helden ist */
+function isHeroOwner(hero) {
+    return state.user?.id && hero.user_id === state.user.id;
+}
 
+/* Hilfsfunktion: Aktivieren eines Helden (wird von Desktop und Mobile verwendet) */
+async function handleActivateHero(heroId, heroName) {
+    try {
+        await setActiveHeroInProfile(heroId);
+        alert(`"${heroName}" ist jetzt der aktive Held.`);
+        await renderHeroes(); // Seite neu laden
+    } catch (err) {
+        alert(`Fehler beim Aktivieren von "${heroName}": ${err.message}`);
+    }
+}
+
+/* ============ Helden bearbeiten (Modal) ============ */
+function showEditHero(hero) {
+    // Sicherheitscheck: Nur der Besitzer darf den Helden bearbeiten
+    if (!isHeroOwner(hero)) {
+        alert('Du hast keine Berechtigung, diesen Helden zu bearbeiten.');
+        return;
+    }
+
+    const root = modal(`
+        <h3>Helden bearbeiten: ${htmlesc(hero.name)}</h3>
+        ${formRow('Name', `<input class="input" id="edit-name" value="${htmlesc(hero.name)}" />`)}
+        <div class="row">
+            ${formRow('Spezies', `<input class="input" id="edit-species" value="${htmlesc(hero.species || '')}" />`)}
+            ${formRow('Profession', `<input class="input" id="edit-profession" value="${htmlesc(hero.profession || '')}" />`)}
+        </div>
+        ${formRow('Notizen', `<textarea class="input" id="edit-notes" rows="3">${htmlesc(hero.notes || '')}</textarea>`)}
+        <div class="row">
+            ${formRow('AP (gesamt)', `<input class="input" id="edit-ap" type="number" min="0" value="${Number(hero.ap_total ?? 0)}" />`)}
+            ${formRow('LP aktuell', `<input class="input" id="edit-lpcur" type="number" min="0" value="${Number(hero.lp_current ?? 0)}" />`)}
+        </div>
+        ${formRow('LP max', `<input class="input" id="edit-lpmax" type="number" min="0" value="${Number(hero.lp_max ?? 0)}" />`)}
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+            <button class="btn warn" id="btn-delete-hero">Löschen</button>
+            <button class="btn secondary" id="btn-set-active">Als Aktiv setzen</button>
+            <button class="btn secondary" id="btn-cancel">Abbrechen</button>
+            <button class="btn" id="btn-save">Speichern</button>
+        </div>
+    `);
+
+    // Button: Abbrechen
+    root.querySelector('#btn-cancel').onclick = () => root.innerHTML = '';
+
+    // Button: Als Aktiv setzen
+    root.querySelector('#btn-set-active').onclick = async () => {
+        try {
+            await setActiveHeroInProfile(hero.id);
+            alert(`"${hero.name}" ist jetzt der aktive Held.`);
+            root.innerHTML = '';
+            await renderHeroes(); // Seite neu laden
+        } catch (err) {
+            alert(`Fehler beim Aktivieren von "${hero.name}": ${err.message}`);
+        }
+    };
+
+    // Button: Löschen
+    root.querySelector('#btn-delete-hero').onclick = async () => {
+        if (!confirm(`Held "${hero.name}" wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.`)) return;
+        try {
+            const { error } = await supabase.from('heroes').delete().eq('id', hero.id);
+            if (error) throw error;
+
+            // Prüfen, ob der gelöschte Held der aktive Held war
+            const activeHeroId = await getActiveHeroId();
+            if (activeHeroId === hero.id) {
+                // Aktiven Helden im Profil zurücksetzen
+                await supabase.from('profiles').update({ active_hero_id: null }).eq('user_id', state.user.id);
+            }
+
+            root.innerHTML = '';
+            await renderHeroes(); // Seite neu laden
+        } catch (err) {
+            alert(`Fehler beim Löschen von "${hero.name}": ${err.message}`);
+        }
+    };
+
+    // Button: Speichern
+    root.querySelector('#btn-save').onclick = async () => {
+        const updatedHero = {
+            name: document.getElementById('edit-name').value.trim(),
+            species: document.getElementById('edit-species').value.trim(),
+            profession: document.getElementById('edit-profession').value.trim(),
+            notes: document.getElementById('edit-notes').value.trim(),
+            ap_total: parseInt(document.getElementById('edit-ap').value) || 0,
+            lp_current: parseInt(document.getElementById('edit-lpcur').value) || 0,
+            lp_max: parseInt(document.getElementById('edit-lpmax').value) || 0,
+        };
+
+        if (!updatedHero.name) {
+            alert('Bitte gib einen Namen ein.');
+            return;
+        }
+        if (updatedHero.lp_current > updatedHero.lp_max) {
+            alert('LP aktuell darf nicht größer als LP max sein.');
+            return;
+        }
+
+        try {
+            const { error } = await supabase.from('heroes').update(updatedHero).eq('id', hero.id);
+            if (error) throw error;
+
+            root.innerHTML = '';
+            await renderHeroes(); // Seite neu laden
+        } catch (err) {
+            alert(`Fehler beim Speichern: ${err.message}`);
+        }
+    };
+}
+
+/* ============ Helden anlegen ============ */
 function showAddHero() {
     const root = modal(`<h3>Neuen Helden anlegen</h3>
         ${formRow('Name', '<input class="input" id="h-name" />')}
@@ -250,8 +385,9 @@ function showAddHero() {
             lp_current: parseInt(document.getElementById('h-lpcur').value) || 0,
             lp_max: parseInt(document.getElementById('h-lpmax').value) || 0,
             notes: document.getElementById('h-notes').value.trim(),
-            user_id: state.user.id
+            user_id: state.user.id // Wichtig: Dem neuen Helden den aktuellen Benutzer als Besitzer zuweisen
         };
+
         if (!hero.name) {
             alert('Bitte gib einen Namen ein.');
             return;
@@ -260,106 +396,13 @@ function showAddHero() {
             alert('LP aktuell darf nicht größer als LP max sein.');
             return;
         }
+
         try {
             await createHero(hero);
             root.remove();
-            await renderHeroes(); // Seite neu laden
+            location.hash = '#/heroes'; // Seite neu laden
         } catch (error) {
             alert(error.message);
         }
     };
-}
-
-/* ============ Helden bearbeiten (Modal) ============ */
-function showEditHero(hero) {
-    const root = modal(`
-        <h3>Helden bearbeiten: ${htmlesc(hero.name)}</h3>
-        ${formRow('Name', `<input class="input" id="edit-name" value="${htmlesc(hero.name)}" />`)}
-        <div class="row">
-            ${formRow('Spezies', `<input class="input" id="edit-species" value="${htmlesc(hero.species || '')}" />`)}
-            ${formRow('Profession', `<input class="input" id="edit-profession" value="${htmlesc(hero.profession || '')}" />`)}
-        </div>
-        ${formRow('Notizen', `<textarea class="input" id="edit-notes" rows="3">${htmlesc(hero.notes || '')}</textarea>`)}
-        <div class="row">
-            ${formRow('AP (gesamt)', `<input class="input" id="edit-ap" type="number" min="0" value="${Number(hero.ap_total ?? 0)}" />`)}
-            ${formRow('LP aktuell', `<input class="input" id="edit-lpcur" type="number" min="0" value="${Number(hero.lp_current ?? 0)}" />`)}
-        </div>
-        ${formRow('LP max', `<input class="input" id="edit-lpmax" type="number" min="0" value="${Number(hero.lp_max ?? 0)}" />`)}
-        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
-            <button class="btn warn" id="btn-delete-hero">Löschen</button>
-            <button class="btn secondary" id="btn-set-active">Als Aktiv setzen</button>
-            <button class="btn secondary" id="btn-cancel">Abbrechen</button>
-            <button class="btn" id="btn-save">Speichern</button>
-        </div>
-    `);
-    // Button: Abbrechen
-    root.querySelector('#btn-cancel').onclick = () => root.innerHTML = '';
-    // Button: Als Aktiv setzen
-    root.querySelector('#btn-set-active').onclick = async () => {
-        try {
-            await setActiveHeroInProfile(hero.id);
-            alert(`"${hero.name}" ist jetzt der aktive Held.`);
-            root.innerHTML = '';
-            await renderHeroes(); // Seite neu laden
-        } catch (err) {
-            alert(`Fehler beim Aktivieren von "${hero.name}": ${err.message}`);
-        }
-    };
-    // Button: Löschen
-    root.querySelector('#btn-delete-hero').onclick = async () => {
-        if (!confirm(`Held "${hero.name}" wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.`)) return;
-        try {
-            const { error } = await supabase.from('heroes').delete().eq('id', hero.id);
-            if (error) throw error;
-            // Prüfen, ob der gelöschte Held der aktive Held war
-            const activeHeroId = await getActiveHeroId();
-            if (activeHeroId === hero.id) {
-                // Aktiven Helden im Profil zurücksetzen
-                await supabase.from('profiles').update({ active_hero_id: null }).eq('user_id', state.user.id);
-            }
-            root.innerHTML = '';
-            await renderHeroes(); // Seite neu laden
-        } catch (err) {
-            alert(`Fehler beim Löschen von "${hero.name}": ${err.message}`);
-        }
-    };
-    // Button: Speichern
-    root.querySelector('#btn-save').onclick = async () => {
-        const updatedHero = {
-            name: document.getElementById('edit-name').value.trim(),
-            species: document.getElementById('edit-species').value.trim(),
-            profession: document.getElementById('edit-profession').value.trim(),
-            notes: document.getElementById('edit-notes').value.trim(),
-            ap_total: parseInt(document.getElementById('edit-ap').value) || 0,
-            lp_current: parseInt(document.getElementById('edit-lpcur').value) || 0,
-            lp_max: parseInt(document.getElementById('edit-lpmax').value) || 0,
-        };
-        if (!updatedHero.name) {
-            alert('Bitte gib einen Namen ein.');
-            return;
-        }
-        if (updatedHero.lp_current > updatedHero.lp_max) {
-            alert('LP aktuell darf nicht größer als LP max sein.');
-            return;
-        }
-        try {
-            const { error } = await supabase.from('heroes').update(updatedHero).eq('id', hero.id);
-            if (error) throw error;
-            root.innerHTML = '';
-            await renderHeroes(); // Seite neu laden
-        } catch (err) {
-            alert(`Fehler beim Speichern: ${err.message}`);
-        }
-    };
-}
-
-/* Hilfsfunktion: Aktivieren eines Helden (wird von Desktop und Mobile verwendet) */
-async function handleActivateHero(heroId, heroName) {
-    try {
-        await setActiveHeroInProfile(heroId);
-        alert(`"${heroName}" ist jetzt der aktive Held.`);
-        await renderHeroes(); // Seite neu laden
-    } catch (err) {
-        alert(`Fehler beim Aktivieren von "${heroName}": ${err.message}`);
-    }
 }
