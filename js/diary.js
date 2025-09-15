@@ -393,7 +393,7 @@ ${'Speichern fehlgeschlagen.'}`);
       }
       await upsertTagsToGlobal(tagsArr);
       root.innerHTML='';
-      location.hash = '#/diary';
+      await renderDiary(); // Seite neu laden
     }catch(err){
       console.error('Diary insert exception:', err);
       alert(err?.message || String(err));

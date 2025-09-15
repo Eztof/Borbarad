@@ -317,7 +317,7 @@ function showAddObject(){
       await upsertNewTags(parseTags(payload.tags));
       await recordHistoryObject(data.id, 'create', payload);
       root.innerHTML='';
-      location.hash = '#/objects';
+      await renderObjects(); // Seite neu laden
     }catch(err){ alert(err.message); }
   };
 }
@@ -374,7 +374,7 @@ function showEditObject(o){
       await upsertNewTags(parseTags(updated.tags));
       await recordHistoryObject(o.id, 'update', updated);
       root.innerHTML='';
-      location.hash = '#/objects';
+      await renderObjects(); // Seite neu laden
     }catch(err){ alert(err.message); }
   };
 }

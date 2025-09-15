@@ -390,7 +390,7 @@ function showEditNSC(n){
       await upsertNewTags(parseTags(updated.tags));
       await recordHistoryNSC(n.id, 'update', updated);
       root.innerHTML='';
-      location.hash = '#/nscs';
+      await renderNSCs(); // Seite neu laden
     }catch(err){ alert(err.message); }
   };
 }
