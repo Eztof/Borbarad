@@ -32,7 +32,7 @@ async function getActiveHero() {
     return heroData;
 }
 
-// Abrufen aller Stammbaum-Daten für einen Helden (inkl. Positionen)
+// Abrufen aller Stammbaum-Daten für einen Helden (inkl. Positionen und Quellen)
 async function fetchFamilyTree(heroId) {
     const { data, error } = await supabase
         .from('family_tree')
@@ -70,7 +70,7 @@ async function listNSCs() {
 }
 
 // Hinzufügen einer neuen Beziehung (mit initialer Position)
-async function addFamilyRelation(heroId, nscId, relationType, notes, x, y) {
+async function addFamilyRelation(heroId, nscId, relationType, notes, x, y, sourceId = null) {
     const { data, error } = await supabase
         .from('family_tree')
         .insert([{
@@ -80,7 +80,8 @@ async function addFamilyRelation(heroId, nscId, relationType, notes, x, y) {
             notes: notes,
             position_x: x,
             position_y: y,
-            connection_type: 'line'
+            connection_type: 'line',
+            source_id: sourceId // Erlaubt Verbindungen zwischen NSCs
         }])
         .select();
     if (error) {
@@ -112,13 +113,14 @@ async function deleteFamilyRelation(relationId) {
 }
 
 // Bearbeiten einer Beziehung
-async function updateFamilyRelation(relationId, relationType, notes, connectionType) {
+async function updateFamilyRelation(relationId, relationType, notes, connectionType, sourceId) {
     const { error } = await supabase
         .from('family_tree')
         .update({
             relation_type: relationType,
             notes: notes,
-            connection_type: connectionType
+            connection_type: connectionType,
+            source_id: sourceId
         })
         .eq('id', relationId);
     if (error) {
@@ -167,6 +169,9 @@ export async function renderFamilyTree() {
                 <div id="canvas-container" style="position:relative;width:100%;height:70vh;overflow:hidden;background:#1a1218;border:1px solid var(--line);border-radius:12px;">
                     <canvas id="family-canvas" style="position:absolute;top:0;left:0;width:100%;height:100%;cursor:grab;"></canvas>
                 </div>
+                <div style="margin-top:16px;text-align:center;font-size:14px;color:var(--muted);">
+                    <p><strong>Bedienung:</strong> Karte antippen und halten, um sie zu verschieben. Doppeltippen, um zu bearbeiten. Langes Tippen, um Verbindung zu erstellen.</p>
+                </div>
             </div>
         `;
         app.innerHTML = html;
@@ -190,9 +195,12 @@ export async function renderFamilyTree() {
             offsetX: 0,
             offsetY: 0,
             isDragging: false,
+            isPanning: false,
             lastX: 0,
             lastY: 0,
             selectedCard: null,
+            longPressTimer: null,
+            startCardForConnection: null,
             relations: relations,
             hero: activeHero,
             nscs: nscs
@@ -321,8 +329,8 @@ export async function renderFamilyTree() {
             ctx.fillText(relation || '–', x, centerY + 35);
         }
 
-        // Finde Karte unter Mausposition
-        function getCardAt(x, y) {
+        // Finde Karte unter Koordinaten (in Canvas-Koordinaten, nicht transformiert)
+        function getCardAt(canvasX, canvasY) {
             for (let rel of state.relations) {
                 const cardX = (rel.position_x || 0) * state.scale + state.offsetX;
                 const cardY = (rel.position_y || 0) * state.scale + state.offsetY;
@@ -330,10 +338,10 @@ export async function renderFamilyTree() {
                 const cardHeight = 80 * state.scale;
 
                 if (
-                    x >= cardX - cardWidth / 2 &&
-                    x <= cardX + cardWidth / 2 &&
-                    y >= cardY - cardHeight / 2 &&
-                    y <= cardY + cardHeight / 2
+                    canvasX >= cardX - cardWidth / 2 &&
+                    canvasX <= cardX + cardWidth / 2 &&
+                    canvasY >= cardY - cardHeight / 2 &&
+                    canvasY <= cardY + cardHeight / 2
                 ) {
                     return rel;
                 }
@@ -341,39 +349,60 @@ export async function renderFamilyTree() {
             return null;
         }
 
-        // Event Listener für Maus-Events
-        canvas.addEventListener('mousedown', (e) => {
-            const rect = canvas.getBoundingClientRect();
-            const mouseX = (e.clientX - rect.left - state.offsetX) / state.scale;
-            const mouseY = (e.clientY - rect.top - state.offsetY) / state.scale;
+        // Hilfsfunktion: Konvertiert Canvas-Koordinaten in Welt-Koordinaten
+        function canvasToWorld(canvasX, canvasY) {
+            const worldX = (canvasX - state.offsetX) / state.scale;
+            const worldY = (canvasY - state.offsetY) / state.scale;
+            return { x: worldX, y: worldY };
+        }
 
-            const card = getCardAt(e.clientX - rect.left, e.clientY - rect.top);
+        // Event Listener für Touch-Events (Mobile-optimiert)
+        let lastTap = 0;
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const rect = canvas.getBoundingClientRect();
+            const canvasX = touch.clientX - rect.left;
+            const canvasY = touch.clientY - rect.top;
+
+            const card = getCardAt(canvasX, canvasY);
             if (card) {
-                state.isDragging = true;
                 state.selectedCard = card;
-                state.lastX = mouseX;
-                state.lastY = mouseY;
-                canvas.style.cursor = 'grabbing';
-            } else {
                 state.isDragging = true;
-                state.selectedCard = null;
-                state.lastX = e.clientX;
-                state.lastY = e.clientY;
+                const worldPos = canvasToWorld(canvasX, canvasY);
+                state.lastX = worldPos.x;
+                state.lastY = worldPos.y;
+                canvas.style.cursor = 'grabbing';
+
+                // Long Press für Verbindung
+                state.longPressTimer = setTimeout(() => {
+                    state.startCardForConnection = card;
+                    alert(`Wähle das Ziel für die Verbindung von "${card.nscs?.name || 'NSC'}" aus.`);
+                }, 1000); // 1 Sekunde Long Press
+            } else {
+                state.isPanning = true;
+                state.lastX = touch.clientX;
+                state.lastY = touch.clientY;
                 canvas.style.cursor = 'grabbing';
             }
         });
 
-        canvas.addEventListener('mousemove', (e) => {
-            if (!state.isDragging) return;
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            if (state.longPressTimer) {
+                clearTimeout(state.longPressTimer);
+                state.longPressTimer = null;
+            }
 
+            const touch = e.touches[0];
             const rect = canvas.getBoundingClientRect();
-            if (state.selectedCard) {
-                // Karte bewegen
-                const mouseX = (e.clientX - rect.left - state.offsetX) / state.scale;
-                const mouseY = (e.clientY - rect.top - state.offsetY) / state.scale;
+            const canvasX = touch.clientX - rect.left;
+            const canvasY = touch.clientY - rect.top;
 
-                const deltaX = mouseX - state.lastX;
-                const deltaY = mouseY - state.lastY;
+            if (state.isDragging && state.selectedCard) {
+                const worldPos = canvasToWorld(canvasX, canvasY);
+                const deltaX = worldPos.x - state.lastX;
+                const deltaY = worldPos.y - state.lastY;
 
                 state.selectedCard.position_x += deltaX;
                 state.selectedCard.position_y += deltaY;
@@ -382,26 +411,162 @@ export async function renderFamilyTree() {
                 updateCardPosition(state.selectedCard.id, state.selectedCard.position_x, state.selectedCard.position_y)
                     .catch(err => console.error("Fehler beim Speichern der Position:", err));
 
-                state.lastX = mouseX;
-                state.lastY = mouseY;
+                state.lastX = worldPos.x;
+                state.lastY = worldPos.y;
+                draw();
+            } else if (state.isPanning) {
+                state.offsetX += touch.clientX - state.lastX;
+                state.offsetY += touch.clientY - state.lastY;
+                state.lastX = touch.clientX;
+                state.lastY = touch.clientY;
+                draw();
+            }
+        });
+
+        canvas.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            if (state.longPressTimer) {
+                clearTimeout(state.longPressTimer);
+                state.longPressTimer = null;
+            }
+
+            if (state.startCardForConnection) {
+                const touch = e.changedTouches[0];
+                const rect = canvas.getBoundingClientRect();
+                const canvasX = touch.clientX - rect.left;
+                const canvasY = touch.clientY - rect.top;
+                const targetCard = getCardAt(canvasX, canvasY);
+
+                if (targetCard && targetCard.id !== state.startCardForConnection.id) {
+                    // Verbindung zwischen zwei NSCs erstellen
+                    showAddRelationModal(
+                        state.hero.id,
+                        state.nscs,
+                        state,
+                        state.startCardForConnection.id, // source_id
+                        targetCard.nsc_id // nsc_id für das Ziel
+                    );
+                } else {
+                    alert('Bitte wähle eine andere Karte als Ziel aus.');
+                }
+                state.startCardForConnection = null;
+            }
+
+            state.isDragging = false;
+            state.isPanning = false;
+            state.selectedCard = null;
+            canvas.style.cursor = 'grab';
+        });
+
+        // Event Listener für Maus-Events (Desktop)
+        canvas.addEventListener('mousedown', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const canvasX = e.clientX - rect.left;
+            const canvasY = e.clientY - rect.top;
+
+            const card = getCardAt(canvasX, canvasY);
+            if (card) {
+                state.selectedCard = card;
+                state.isDragging = true;
+                const worldPos = canvasToWorld(canvasX, canvasY);
+                state.lastX = worldPos.x;
+                state.lastY = worldPos.y;
+                canvas.style.cursor = 'grabbing';
             } else {
-                // Canvas pannen
+                state.isPanning = true;
+                state.lastX = e.clientX;
+                state.lastY = e.clientY;
+                canvas.style.cursor = 'grabbing';
+            }
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (state.isDragging && state.selectedCard) {
+                const rect = canvas.getBoundingClientRect();
+                const canvasX = e.clientX - rect.left;
+                const canvasY = e.clientY - rect.top;
+                const worldPos = canvasToWorld(canvasX, canvasY);
+
+                const deltaX = worldPos.x - state.lastX;
+                const deltaY = worldPos.y - state.lastY;
+
+                state.selectedCard.position_x += deltaX;
+                state.selectedCard.position_y += deltaY;
+
+                updateCardPosition(state.selectedCard.id, state.selectedCard.position_x, state.selectedCard.position_y)
+                    .catch(err => console.error("Fehler beim Speichern der Position:", err));
+
+                state.lastX = worldPos.x;
+                state.lastY = worldPos.y;
+                draw();
+            } else if (state.isPanning) {
                 state.offsetX += e.clientX - state.lastX;
                 state.offsetY += e.clientY - state.lastY;
                 state.lastX = e.clientX;
                 state.lastY = e.clientY;
+                draw();
             }
-            draw();
         });
 
         canvas.addEventListener('mouseup', () => {
             state.isDragging = false;
+            state.isPanning = false;
+            state.selectedCard = null;
             canvas.style.cursor = 'grab';
         });
 
         canvas.addEventListener('mouseleave', () => {
             state.isDragging = false;
+            state.isPanning = false;
+            state.selectedCard = null;
             canvas.style.cursor = 'grab';
+        });
+
+        // Doppelklick/Doppeltippen zum Bearbeiten
+        canvas.addEventListener('dblclick', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const canvasX = e.clientX - rect.left;
+            const canvasY = e.clientY - rect.top;
+            const card = getCardAt(canvasX, canvasY);
+            if (card) {
+                showEditRelationModal(card, state.nscs, state, draw); // draw-Funktion übergeben
+            }
+        });
+
+        canvas.addEventListener('touchend', (e) => {
+            const currentTime = new Date().getTime();
+            const tapLength = currentTime - lastTap;
+            if (tapLength < 500 && tapLength > 0) {
+                // Doppeltippen erkannt
+                const touch = e.changedTouches[0];
+                const rect = canvas.getBoundingClientRect();
+                const canvasX = touch.clientX - rect.left;
+                const canvasY = touch.clientY - rect.top;
+                const card = getCardAt(canvasX, canvasY);
+                if (card) {
+                    showEditRelationModal(card, state.nscs, state, draw); // draw-Funktion übergeben
+                }
+            }
+            lastTap = currentTime;
+        });
+
+        // Rechtsklick auf Karte zum Löschen (Desktop)
+        canvas.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            const canvasX = e.clientX - rect.left;
+            const canvasY = e.clientY - rect.top;
+            const card = getCardAt(canvasX, canvasY);
+            if (card) {
+                if (confirm(`Möchtest du die Beziehung zu "${card.nscs?.name || 'NSC'}" wirklich löschen?`)) {
+                    deleteFamilyRelation(card.id)
+                        .then(() => {
+                            state.relations = state.relations.filter(r => r.id !== card.id);
+                            draw();
+                        })
+                        .catch(err => alert(`Fehler beim Löschen: ${err.message}`));
+                }
+            }
         });
 
         // Zoom-Events
@@ -417,33 +582,7 @@ export async function renderFamilyTree() {
 
         // Hinzufügen einer neuen Beziehung
         document.getElementById('btn-add-relation').addEventListener('click', () => {
-            showAddRelationModal(state.hero.id, state.nscs, state);
-        });
-
-        // Doppelklick auf Karte zum Bearbeiten
-        canvas.addEventListener('dblclick', (e) => {
-            const rect = canvas.getBoundingClientRect();
-            const card = getCardAt(e.clientX - rect.left, e.clientY - rect.top);
-            if (card) {
-                showEditRelationModal(card, state.nscs, state);
-            }
-        });
-
-        // Rechtsklick auf Karte zum Löschen
-        canvas.addEventListener('contextmenu', (e) => {
-            e.preventDefault();
-            const rect = canvas.getBoundingClientRect();
-            const card = getCardAt(e.clientX - rect.left, e.clientY - rect.top);
-            if (card) {
-                if (confirm(`Möchtest du die Beziehung zu "${card.nscs?.name || 'NSC'}" wirklich löschen?`)) {
-                    deleteFamilyRelation(card.id)
-                        .then(() => {
-                            state.relations = state.relations.filter(r => r.id !== card.id);
-                            draw();
-                        })
-                        .catch(err => alert(`Fehler beim Löschen: ${err.message}`));
-                }
-            }
+            showAddRelationModal(state.hero.id, state.nscs, state, null, null, draw); // draw-Funktion übergeben
         });
 
         // Initiales Zeichnen
@@ -456,10 +595,10 @@ export async function renderFamilyTree() {
 }
 
 // Modal zum Hinzufügen einer neuen Beziehung
-function showAddRelationModal(heroId, nscs, state) {
-    const nscOptions = nscs.map(nsc => `<option value="${nsc.id}">${htmlesc(nsc.name)}</option>`).join('');
+function showAddRelationModal(heroId, nscs, state, sourceId = null, preselectedNscId = null, drawCallback) {
+    const nscOptions = nscs.map(nsc => `<option value="${nsc.id}" ${nsc.id === preselectedNscId ? 'selected' : ''}>${htmlesc(nsc.name)}</option>`).join('');
     const root = modal(`
-        <h3>Neue Beziehung hinzufügen</h3>
+        <h3>${sourceId ? 'Verbindung erstellen' : 'Neue Beziehung hinzufügen'}</h3>
         <div class="row">
             ${formRow('NSC auswählen', `<select class="input" id="nsc-select">${nscOptions}</select>`)}
             ${formRow('Beziehung', '<input class="input" id="relation-type" placeholder="z.B. Vater, Schwester, Onkel" />')}
@@ -467,7 +606,7 @@ function showAddRelationModal(heroId, nscs, state) {
         ${formRow('Notizen (optional)', '<textarea class="input" id="relation-notes" rows="3"></textarea>')}
         <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
             <button class="btn secondary" id="cancel-add">Abbrechen</button>
-            <button class="btn" id="save-add">Hinzufügen</button>
+            <button class="btn" id="save-add">${sourceId ? 'Verbindung erstellen' : 'Hinzufügen'}</button>
         </div>
     `);
 
@@ -487,14 +626,23 @@ function showAddRelationModal(heroId, nscs, state) {
         }
 
         try {
-            // Füge neue Karte mit initialer Position hinzu (rechts vom Zentrum)
-            const initialX = 200;
-            const initialY = 0;
-            const newRelation = await addFamilyRelation(heroId, nscId, relationType, notes, initialX, initialY);
+            // Füge neue Karte mit initialer Position hinzu
+            let initialX = 200;
+            let initialY = 0;
+            if (sourceId) {
+                // Wenn es eine Verbindung zwischen NSCs ist, platziere die neue Karte relativ zur Quelle
+                const sourceCard = state.relations.find(r => r.id === sourceId);
+                if (sourceCard) {
+                    initialX = (sourceCard.position_x || 0) + 150;
+                    initialY = (sourceCard.position_y || 0);
+                }
+            }
+
+            const newRelation = await addFamilyRelation(heroId, nscId, relationType, notes, initialX, initialY, sourceId);
 
             // Aktualisiere den lokalen Zustand und zeichne neu
             state.relations.push(newRelation);
-            draw();
+            if (drawCallback) drawCallback();
 
             root.innerHTML = '';
         } catch (err) {
@@ -504,13 +652,20 @@ function showAddRelationModal(heroId, nscs, state) {
 }
 
 // Modal zum Bearbeiten einer bestehenden Beziehung
-function showEditRelationModal(relation, nscs, state) {
+function showEditRelationModal(relation, nscs, state, drawCallback) {
     const nscOptions = nscs.map(nsc => `<option value="${nsc.id}" ${nsc.id === relation.nsc_id ? 'selected' : ''}>${htmlesc(nsc.name)}</option>`).join('');
     const connectionTypeOptions = `
         <option value="line" ${relation.connection_type === 'line' ? 'selected' : ''}>Durchgezogene Linie</option>
         <option value="dashed" ${relation.connection_type === 'dashed' ? 'selected' : ''}>Gestrichelte Linie</option>
         <option value="arrow" ${relation.connection_type === 'arrow' ? 'selected' : ''}>Pfeil</option>
     `;
+
+    // Optionen für Quell-NSC (für Verbindungen zwischen NSCs)
+    const sourceOptions = `<option value="">Mit Helden verbinden</option>` +
+        state.relations
+            .filter(r => r.id !== relation.id) // Nicht mit sich selbst verbinden
+            .map(r => `<option value="${r.id}" ${r.id === relation.source_id ? 'selected' : ''}>${htmlesc(r.nscs?.name || 'Unbekannt')}</option>`)
+            .join('');
 
     const root = modal(`
         <h3>Beziehung bearbeiten</h3>
@@ -519,6 +674,7 @@ function showEditRelationModal(relation, nscs, state) {
             ${formRow('Beziehung', `<input class="input" id="relation-type" value="${htmlesc(relation.relation_type || '')}" />`)}
         </div>
         ${formRow('Verbindungstyp', `<select class="input" id="connection-type">${connectionTypeOptions}</select>`)}
+        ${formRow('Verbunden mit', `<select class="input" id="source-select">${sourceOptions}</select>`)}
         ${formRow('Notizen (optional)', `<textarea class="input" id="relation-notes" rows="3">${htmlesc(relation.notes || '')}</textarea>`)}
         <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
             <button class="btn secondary" id="cancel-edit">Abbrechen</button>
@@ -533,7 +689,7 @@ function showEditRelationModal(relation, nscs, state) {
         try {
             await deleteFamilyRelation(relation.id);
             state.relations = state.relations.filter(r => r.id !== relation.id);
-            draw();
+            if (drawCallback) drawCallback();
             root.innerHTML = '';
         } catch (err) {
             alert(`Fehler beim Löschen: ${err.message}`);
@@ -543,6 +699,7 @@ function showEditRelationModal(relation, nscs, state) {
         const nscId = document.getElementById('nsc-select').value;
         const relationType = document.getElementById('relation-type').value.trim();
         const connectionType = document.getElementById('connection-type').value;
+        const sourceId = document.getElementById('source-select').value || null; // Kann null sein (Verbindung zum Helden)
         const notes = document.getElementById('relation-notes').value.trim();
 
         if (!nscId) {
@@ -555,7 +712,7 @@ function showEditRelationModal(relation, nscs, state) {
         }
 
         try {
-            await updateFamilyRelation(relation.id, relationType, notes, connectionType);
+            await updateFamilyRelation(relation.id, relationType, notes, connectionType, sourceId);
             // Aktualisiere den lokalen Zustand
             const updatedRelation = state.relations.find(r => r.id === relation.id);
             if (updatedRelation) {
@@ -563,8 +720,9 @@ function showEditRelationModal(relation, nscs, state) {
                 updatedRelation.relation_type = relationType;
                 updatedRelation.notes = notes;
                 updatedRelation.connection_type = connectionType;
+                updatedRelation.source_id = sourceId;
             }
-            draw();
+            if (drawCallback) drawCallback();
             root.innerHTML = '';
         } catch (err) {
             alert(`Fehler beim Speichern: ${err.message}`);
