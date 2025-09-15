@@ -90,15 +90,12 @@ function row(n){
 /* ============ Card-Ansicht für Mobile ============ */
 function mobileCard(n) {
   return `
-    <div class="mobile-card" data-id="${n.id}">
+    <div class="mobile-card" data-id="${n.id}" style="cursor: pointer;">
       <div class="mobile-card-header">
         <div style="display:flex;align-items:center;gap:10px">
           ${avatar(n.image_url, n.name, 40)}
           <strong>${htmlesc(n.name)}</strong>
         </div>
-      </div>
-      <div class="mobile-card-footer">
-        <button class="btn secondary mobile-card-btn">Details</button>
       </div>
     </div>
   `;
@@ -209,11 +206,11 @@ export async function renderNSCs(){
   });
 
   // Detail / Edit öffnen (Mobile)
-  mobileView.addEventListener('click', (e) => {
+  mobileView.addEventListener('click', async (e) => {
     const card = e.target.closest('.mobile-card');
     if (!card) return;
-    
-    if (e.target.classList.contains('mobile-card-btn')) {
+    // Prüfen, ob der Klick innerhalb der Karte war
+    if (card.contains(e.target)) {
       const id = card.dataset.id;
       const n = items.find(x=>x.id===id);
       if (n) showNSC(n);
