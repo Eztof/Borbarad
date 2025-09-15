@@ -306,7 +306,7 @@ function showDiaryEntry(entry){
   const root = modal(`
     <div>
       <h3 style="margin:0 0 6px 0">${htmlesc(entry.title)}</h3>
-      <div class="small" style="margin-bottom:10px">von ${htmlesc(entry.author_name||'Unbekannt')} • ${created}${updated?` • aktualisiert: ${updated}`:''} • ${formatAvDate(entry.av_date)}</div>
+      <div class="small" style="margin-bottom:10px">von ${htmlesc(entry.author_name||'Unbekannt')} • ${formatAvDate(entry.av_date)}</div>
       <div class="card">
         <div class="rte-view" id="rte-view"></div>
         ${entry.signature ? `<div class="rte-signature">— ${htmlesc(entry.signature)}</div>` : ''}
