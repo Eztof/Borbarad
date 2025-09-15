@@ -7,7 +7,9 @@ import { renderCalendar } from './calendar.js';
 import { renderDiary } from './diary.js';
 import { renderTags } from './tags.js';
 import { renderOpen } from './open.js';
+import { renderFamilyTree } from './familytree.js';
 import { state, subscribe } from './state.js';
+
 
 const routes = {
   '#/home': renderHome,
@@ -18,7 +20,8 @@ const routes = {
   '#/calendar': renderCalendar,
   '#/diary': renderDiary,
   '#/tags': renderTags,
-  '#/open': renderOpen
+  '#/open': renderOpen,
+  '#/familytree': renderFamilyTree,
 };
 
 function baseHash(){

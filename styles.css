@@ -228,3 +228,32 @@ select.input{padding-right:28px}
     margin-bottom: 16px;
 }
 /* ... (restliche CSS-Regeln bleiben gleich) ... */
+
+/* ===== Stammbaum-Karten ===== */
+.family-tree-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 16px;
+    margin-top: 16px;
+}
+.family-card {
+    background: var(--panel-soft);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: var(--shadow);
+}
+.family-header {
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--line-soft);
+}
+.family-body {
+    margin-bottom: 16px;
+    line-height: 1.5;
+}
+.family-footer {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+}
