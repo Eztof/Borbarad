@@ -194,11 +194,7 @@ function mobileCard(d) {
       </div>
       <div class="mobile-card-body">
         <div class="mobile-card-item">
-          <span class="mobile-card-label">Datum:</span>
           <span class="mobile-card-value">${formatAvDate(d.av_date)}</span>
-        </div>
-        <div class="mobile-card-item">
-          <span class="mobile-card-label">Autor:</span>
           <span class="mobile-card-value">${htmlesc(d.author_name||'Unbekannt')}</span>
         </div>
       </div>
