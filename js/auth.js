@@ -6,13 +6,13 @@ import { subscribe } from './state.js';
 function mountAuthBox(){ renderAuthBox(state.user); }
 
 document.addEventListener('click', async (e)=>{
-  if (e.target?.id === 'btn-login') showLogin();
-  if (e.target?.id === 'btn-register') showRegister();
-  if (e.target?.id === 'btn-logout') {
-    await supabase.auth.signOut();
-    setUser(null);
-    location.hash = '#/home';
-  }
+    if (e.target?.id === 'btn-login') showLogin();
+    if (e.target?.id === 'btn-register') showRegister();
+    if (e.target?.id === 'btn-logout') {
+        await supabase.auth.signOut();
+        setUser(null);
+        location.hash = '#/home';
+    }
 });
 
 function showLogin(){

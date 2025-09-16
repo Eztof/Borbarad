@@ -13,17 +13,17 @@ export function renderAuthBox(user){
 }
 
 export function modal(html){
-  // Sicherstellen, dass das Modal-Root existiert
-  let root = document.getElementById('modal-root');
-  if (!root) {
-    root = document.createElement('div');
-    root.id = 'modal-root';
-    root.setAttribute('aria-live', 'polite');
-    document.body.appendChild(root);
-  }
-  root.innerHTML = `<div class="modal"><div class="panel">${html}</div></div>`;
-  root.addEventListener('click', (e)=>{ if(e.target===root) root.innerHTML=''; }, { once:true });
-  return root;
+    // Sicherstellen, dass das Modal-Root existiert
+    let root = document.getElementById('modal-root');
+    if (!root) {
+        root = document.createElement('div');
+        root.id = 'modal-root';
+        root.setAttribute('aria-live', 'polite');
+        document.body.appendChild(root);
+    }
+    root.innerHTML = `<div class="modal"><div class="panel">${html}</div></div>`;
+    root.addEventListener('click', (e)=>{ if(e.target===root) root.innerHTML=''; }, { once:true });
+    return root;
 }
 
 export function avatar(url, name){
