@@ -42,13 +42,11 @@ function saveCampaignDateToDB(){
 
 // Session laden + Kampagnen-Datum initialisieren
 (async ()=>{
-  const { data: { session } } = await supabase.auth.getSession();
+  const { data } = await supabase.auth.getSession();
+  const session = data?.session || null;
   state.user = session?.user || null;
-
-  // Zuerst aus localStorage, dann ggf. DB überschreibt
   const raw = localStorage.getItem('campaignDate');
   state.campaignDate = raw ? JSON.parse(raw) : { year: 1027, month: 1, day: 1 };
-
   if (state.user){
     await loadCampaignDateFromDB();
   }
