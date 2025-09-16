@@ -37,15 +37,11 @@ function setActiveLink(){
 }
 
 function renderLocked(){
-    // *** WICHTIG: Alle offenen Modals schließen ***
+    // *** WICHTIG: Alle offenen Modals schließen und das modal-root Element entfernen ***
     const modalRoot = document.getElementById('modal-root');
     if (modalRoot) {
-        // Alle Kind-Elemente entfernen (löscht auch Event-Listener der Kinder)
-        while (modalRoot.firstChild) {
-            modalRoot.removeChild(modalRoot.firstChild);
-        }
-        // Den Hintergrund-Overlay ausblenden
-        modalRoot.style.display = 'none';
+        // Entferne das gesamte modal-root Element aus dem DOM
+        modalRoot.remove();
     }
     const app = document.getElementById('app');
     app.innerHTML = `<div class="card"><h2>Zugang erforderlich</h2><div style="display:flex;gap:8px;margin-top:10px"><button class="btn secondary" id="btn-login">Login</button><button class="btn" id="btn-register">Registrieren</button></div></div>`;
