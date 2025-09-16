@@ -13,17 +13,30 @@ export function renderAuthBox(user){
 }
 
 export function modal(html){
-    // Sicherstellen, dass das Modal-Root existiert
-    let root = document.getElementById('modal-root');
-    if (!root) {
-        root = document.createElement('div');
-        root.id = 'modal-root';
-        root.setAttribute('aria-live', 'polite');
-        document.body.appendChild(root);
+  // Sicherstellen, dass das Modal-Root existiert
+  let root = document.getElementById('modal-root');
+  if (!root) {
+    root = document.createElement('div');
+    root.id = 'modal-root';
+    root.setAttribute('aria-live', 'polite');
+    document.body.appendChild(root);
+  }
+  
+  // Setze den HTML-Inhalt
+  root.innerHTML = `
+    <div class="modal" role="dialog" aria-modal="true">
+      <div class="panel">${html}</div>
+    </div>
+  `;
+  
+  // Schließen bei Klick außerhalb des Panels
+  root.onclick = (e) => {
+    if (e.target === root) {
+      root.remove(); // Entferne das Root-Element beim Schließen
     }
-    root.innerHTML = `<div class="modal"><div class="panel">${html}</div></div>`;
-    root.addEventListener('click', (e)=>{ if(e.target===root) root.innerHTML=''; }, { once:true });
-    return root;
+  };
+  
+  return root;
 }
 
 export function avatar(url, name){
