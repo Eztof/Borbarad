@@ -23,16 +23,12 @@ export function modal(html){
   }
   
   // Setze den HTML-Inhalt
-  root.innerHTML = `
-    <div class="modal" role="dialog" aria-modal="true">
-      <div class="panel">${html}</div>
-    </div>
-  `;
+  root.innerHTML = `<div class="modal" role="dialog" aria-modal="true"><div class="panel">${html}</div></div>`;
   
   // Schließen bei Klick außerhalb des Panels
   root.onclick = (e) => {
     if (e.target === root) {
-      root.remove(); // Entferne das Root-Element beim Schließen
+      root.innerHTML = ''; // Leere den Inhalt statt das Element zu entfernen
     }
   };
   

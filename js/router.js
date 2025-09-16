@@ -9,32 +9,31 @@ import { renderCalendar } from './calendar.js';
 import { renderDiary } from './diary.js';
 import { renderTags } from './tags.js';
 import { renderOpen } from './open.js';
-import { renderFamilyTree } from './familytree.js'; // NEU
-import { showLogin, showRegister } from './auth.js'; 
+// *** NEU: Importiere die Authentifizierungsfunktionen ***
+import { showLogin, showRegister } from './auth.js';
 
+// Routen-Zuordnung
 const routes = {
-    '#/home': renderHome,
-    '#/heroes': renderHeroes,
-    '#/money': renderMoney,
-    '#/nscs': renderNSCs,
-    '#/objects': renderObjects,
-    '#/calendar': renderCalendar,
-    '#/diary': renderDiary,
-    '#/tags': renderTags,
-    '#/open': renderOpen,
-    '#/familytree': renderFamilyTree, // NEU
+  '#/home': renderHome,
+  '#/heroes': renderHeroes,
+  '#/money': renderMoney,
+  '#/nscs': renderNSCs,
+  '#/objects': renderObjects,
+  '#/calendar': renderCalendar,
+  '#/diary': renderDiary,
+  '#/tags': renderTags,
+  '#/open': renderOpen
 };
 
-function baseHash(){
-    return (location.hash || '#/home').split('?')[0];
+function baseHash() {
+  return location.hash.split('?')[0];
 }
 
-function setActiveLink(){
-    const cur = baseHash();
-    document.querySelectorAll('.menu a').forEach(a=>{
-        if (a.getAttribute('href')===cur) a.classList.add('active');
-        else a.classList.remove('active');
-    });
+function setActiveLink() {
+  const base = baseHash();
+  document.querySelectorAll('nav a').forEach(a => {
+    a.classList.toggle('active', a.getAttribute('href') === base);
+  });
 }
 
 function renderLocked(){
@@ -54,20 +53,22 @@ function renderLocked(){
 }
 
 function render(){
-    const curBase = baseHash();
-    setActiveLink();
-    if (!state.user){
-        renderLocked();
-        return;
-    }
-    const handler = routes[curBase] || renderHome;
-    handler();
+  const curBase = baseHash();
+  setActiveLink();
+  
+  if (!state.user){
+    renderLocked();
+    return;
+  }
+  
+  const handler = routes[curBase] || renderHome;
+  handler();
 }
 
 window.addEventListener('hashchange', render);
 window.addEventListener('load', ()=>{
-    if (!location.hash) location.hash = '#/home';
-    render();
+  if (!location.hash) location.hash = '#/home';
+  render();
 });
 
 // Sofort re-rendern bei Login/Logout
