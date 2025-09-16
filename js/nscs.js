@@ -17,7 +17,7 @@ async function listNSCs() {
 async function getNSCNotes(nscId, userId) {
     const { data, error } = await supabase
         .from('nsc_notes')
-        .select('id, title, content, is_private, created_at, updated_at')
+        .select('id, title, content, is_private, created_at, updated_at, user_id')
         .eq('nsc_id', nscId)
         .or(`user_id.eq.${userId},is_private.eq.false`);
     if (error) {
@@ -39,13 +39,15 @@ async function createNSCNote(nscId, userId, title, content, isPrivate) {
 }
 
 async function updateNSCNote(noteId, title, content, isPrivate) {
-    const { error } = await supabase
+    const { data, error } = await supabase
         .from('nsc_notes')
         .update({ title: title, content: content, is_private: isPrivate })
-        .eq('id', noteId);
+        .eq('id', noteId)
+        .select('id');
     if (error) {
         throw error;
     }
+    return data[0];
 }
 
 async function deleteNSCNote(noteId) {
@@ -156,7 +158,7 @@ function renderSettingsModal(settings) {
     };
 
     const columnCheckboxes = columns.map(col => `
-        <div class="row">
+        <div class="form-group">
             <input type="checkbox" id="col-${col}" ${settings.visibleColumns.includes(col) ? 'checked' : ''} />
             <label for="col-${col}">${columnLabels[col]}</label>
         </div>
@@ -164,23 +166,23 @@ function renderSettingsModal(settings) {
 
     const root = modal(`
         <h3>NSC-Tabelle Einstellungen</h3>
-        <div class="row">
-            <div class="label">Sortierfeld</div>
+        <div class="form-group">
+            <label for="sort-field">Sortierfeld</label>
             <select class="input" id="sort-field">
                 <option value="name" ${settings.sortField === 'name' ? 'selected' : ''}>Name</option>
                 <option value="first_encounter" ${settings.sortField === 'first_encounter' ? 'selected' : ''}>Erste Begegnung</option>
                 <option value="last_encounter" ${settings.sortField === 'last_encounter' ? 'selected' : ''}>Letzte Begegnung</option>
             </select>
         </div>
-        <div class="row">
-            <div class="label">Sortierreihenfolge</div>
+        <div class="form-group">
+            <label for="sort-dir">Sortierreihenfolge</label>
             <select class="input" id="sort-dir">
                 <option value="1" ${settings.sortDir === 1 ? 'selected' : ''}>Aufsteigend</option>
                 <option value="-1" ${settings.sortDir === -1 ? 'selected' : ''}>Absteigend</option>
             </select>
         </div>
-        <div class="row">
-            <div class="label">Anzuzeigende Spalten</div>
+        <div class="form-group">
+            <label>Anzuzeigende Spalten</label>
             ${columnCheckboxes}
         </div>
         <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
@@ -198,9 +200,13 @@ function renderSettingsModal(settings) {
             .map(cb => cb.id.split('-')[1]);
 
         await saveProfileSettings(sortField, sortDir, visibleColumns);
+        
         // Update the settings in the global state
         state.nscTableSettings = { sortField, sortDir, visibleColumns };
-        await renderNSCs(); // Refresh the table
+        
+        // Refresh the entire page to apply changes
+        await renderNSCs();
+        
         root.innerHTML = '';
     };
 }
@@ -224,9 +230,9 @@ export async function renderNSCs() {
     
     // Sicherstellen, dass die Einstellungen immer definiert sind
     state.nscTableSettings = {
-        sortField: profileSettings?.sortField || 'name',
-        sortDir: profileSettings?.sortDir || 1,
-        visibleColumns: profileSettings?.visibleColumns || ['name', 'last_encounter', 'notes_count']
+        sortField: profileSettings?.nsc_table_sort_field || 'name',
+        sortDir: profileSettings?.nsc_table_sort_dir || 1,
+        visibleColumns: profileSettings?.nsc_table_visible_columns || ['name', 'last_encounter', 'notes_count']
     };
 
     // Sortiere die Liste nach den Einstellungen
@@ -263,7 +269,7 @@ export async function renderNSCs() {
 
     app.innerHTML = `
         <div class="card">
-            ${section('NSCs', `<div style="display:flex;gap:8px"><input class="input" placeholder="Suche… (Name/Tags)" id="nsc-q" style="width:260px"/><button class="btn" id="add-nsc">+ NSC</button><button class="btn secondary" id="settings-btn">⚙️</button></div>`)}
+            ${section('NSCs', `<div style="display:flex;gap:8px"><input class="input" placeholder="Suche… (Name/Tags)" id="nsc-q" style="width:260px"/><button class="btn" id="add-nsc">+ NSC</button><button class="btn secondary" id="settings-btn">⚙️ Einstellungen</button></div>`)}
             <div id="desktop-view" class="card">
                 <table class="table">
                     <thead>
@@ -353,11 +359,13 @@ export async function renderNSCs() {
         if (n) showNSC(n);
     });
 
-    // Detail / Edit öffnen (Mobile)
+    // Detail / Edit öffnen (Mobile) - KORRIGIERT
     mobileView.addEventListener('click', async (e) => {
         const card = e.target.closest('.mobile-card');
         if (!card) return;
-        if (e.target.classList.contains('mobile-card-btn')) {
+        
+        // Prüfen, ob der Klick innerhalb der Karte war
+        if (card.contains(e.target)) {
             const id = card.dataset.id;
             const n = items.find(x => x.id === id);
             if (n) showNSC(n);
@@ -495,7 +503,7 @@ function showAddNoteModal(nscId, parentModal) {
         <h3>Neue Notiz hinzufügen</h3>
         ${formRow('Titel', '<input class="input" id="note-title" placeholder="Titel der Notiz" />')}
         ${formRow('Inhalt', '<textarea class="input" id="note-content" rows="5" placeholder="Inhalt der Notiz"></textarea>')}
-        <div class="row">
+        <div class="form-group">
             <input type="checkbox" id="note-private" checked />
             <label for="note-private">Privat (nur für mich sichtbar)</label>
         </div>
@@ -537,7 +545,7 @@ function showEditNoteModal(note, nscId, parentModal) {
         <h3>Notiz bearbeiten</h3>
         ${formRow('Titel', `<input class="input" id="note-title" value="${htmlesc(note.title)}" />`)}
         ${formRow('Inhalt', `<textarea class="input" id="note-content" rows="5">${htmlesc(note.content || '')}</textarea>`)}
-        <div class="row">
+        <div class="form-group">
             <input type="checkbox" id="note-private" ${note.is_private ? 'checked' : ''} />
             <label for="note-private">Privat (nur für mich sichtbar)</label>
         </div>
@@ -744,4 +752,19 @@ async function upsertNewTags(tagsArr) {
         await supabase.from('tags').insert(newTags.map(t => ({ tag: t })));
         TAG_CACHE.push(...newTags);
     }
+}
+
+// Hilfsfunktionen (falls nicht global verfügbar)
+function parseTags(str) {
+    if (!str) return [];
+    return str.split(',').map(t => t.trim()).filter(t => t);
+}
+
+async function loadAllTags() {
+    const { data, error } = await supabase.from('tags').select('tag').order('tag', { ascending: true });
+    if (error) {
+        console.warn('Tags-Liste konnte nicht geladen werden:', error.message);
+        return;
+    }
+    TAG_CACHE = data.map(x => x.tag);
 }
