@@ -21,7 +21,6 @@ export function modal(html){
     root.setAttribute('aria-live', 'polite');
     document.body.appendChild(root);
   }
-  
   // Setze den HTML-Inhalt
   root.innerHTML = `<div class="modal" role="dialog" aria-modal="true"><div class="panel">${html}</div></div>`;
   

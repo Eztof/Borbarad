@@ -1,4 +1,4 @@
-// js/auth.js (Auszug mit den relevanten Funktionen)
+// js/auth.js (Vollständiger relevanter Teil)
 import { supabase } from './supabaseClient.js';
 import { state, setUser } from './state.js';
 import { renderAuthBox, modal } from './components.js';
@@ -21,9 +21,8 @@ document.addEventListener('click', async (e)=>{
 function showLogin(){
   const root = modal(`<h3>Login</h3><div class="row"><div><div class="label">Nutzername</div><input class="input" id="auth-username" /></div><div><div class="label">Passwort</div><input class="input" type="password" id="auth-password" /></div></div><div style="display:flex;gap:8px;margin-top:10px"><button class="btn secondary" id="auth-cancel">Abbrechen</button><button class="btn" id="auth-login">Login</button></div>`);
   
-  root.querySelector('#auth-cancel').onclick = () => {
-    root.innerHTML = ''; // Modal schließen
-  };
+  const close = () => { root.innerHTML = ''; }; // Hilfsfunktion zum Schließen
+  root.querySelector('#auth-cancel').onclick = close;
   
   root.querySelector('#auth-login').onclick = async () => {
     const username = root.querySelector('#auth-username').value.trim();
@@ -60,7 +59,7 @@ function showLogin(){
       }
 
       // *** WICHTIG: Modal schließen, bevor setUser gerufen wird ***
-      root.innerHTML = ''; // Leeren des Modals
+      close(); // Verwende die Hilfsfunktion
 
       // 3. State aktualisieren (löst Rerender aus)
       setUser(data.user);
@@ -68,6 +67,8 @@ function showLogin(){
     } catch (err) {
         console.error("Unerwarteter Fehler beim Login:", err);
         alert(`Ein Fehler ist aufgetreten: ${err.message || String(err)}`);
+        // Auch bei Fehlern Modal schließen? Wahrscheinlich nicht, damit der Nutzer den Fehler sieht
+        // close();
     }
   };
 }
@@ -75,9 +76,8 @@ function showLogin(){
 function showRegister(){
   const root = modal(`<h3>Registrieren</h3><div class="row"><div><div><div class="label">Nutzername</div><input class="input" id="reg-username" /></div><div><div class="label">E-Mail</div><input class="input" type="email" id="reg-email" /></div><div><div class="label">Passwort</div><input class="input" type="password" id="reg-password" /></div></div><div style="display:flex;gap:8px;margin-top:10px"><button class="btn secondary" id="reg-cancel">Abbrechen</button><button class="btn" id="reg-register">Registrieren</button></div>`);
 
-  root.querySelector('#reg-cancel').onclick = () => {
-    root.innerHTML = ''; // Modal schließen
-  };
+  const close = () => { root.innerHTML = ''; }; // Hilfsfunktion zum Schließen
+  root.querySelector('#reg-cancel').onclick = close;
 
   root.querySelector('#reg-register').onclick = async () => {
     const username = root.querySelector('#reg-username').value.trim();
@@ -120,7 +120,7 @@ function showRegister(){
       }
 
       // *** WICHTIG: Modal schließen, bevor setUser gerufen wird ***
-      root.innerHTML = ''; // Leeren des Modals
+      close(); // Verwende die Hilfsfunktion
 
       // 3. State aktualisieren (löst Rerender aus)
       // Optional: Direktes Login nach Registrierung, falls nicht per E-Mail bestätigt
@@ -130,6 +130,8 @@ function showRegister(){
     } catch (err) {
         console.error("Unerwarteter Fehler bei der Registrierung:", err);
         alert(`Ein Fehler ist aufgetreten: ${err.message || String(err)}`);
+        // Auch bei Fehlern Modal schließen? Wahrscheinlich nicht, damit der Nutzer den Fehler sieht
+        // close();
     }
   };
 }
