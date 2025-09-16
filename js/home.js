@@ -40,13 +40,8 @@ async function saveCampaignDateAndPropagate(){
   setCampaignDate(newDate);
 
   // 2) Optional in DB persistieren (falls Tabelle existiert)
-  try{
-    // Erwartet eine Tabelle campaign_state(id text primary key, av_date jsonb)
-    await supabase.from('campaign_state')
-      .upsert({ id: 'singleton', av_date: newDate }, { onConflict: 'id' });
-  }catch(e){
-    console.warn('campaign_state upsert:', e.message);
-  }
+  supabase.from('app_settings')
+  .upsert({ key:'campaign_date', value: state.campaignDate })
 
   // 3) Alle aktiven NSCs auf neues Datum setzen
   try{
