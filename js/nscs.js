@@ -1,7 +1,7 @@
 // js/nscs.js
 import { supabase } from './supabaseClient.js';
 import { state } from './state.js';
-import { modal, empty } from './components.js';
+import { modal, empty, section } from './components.js';
 import { htmlesc } from './utils.js';
 
 /* ============ API ============ */
