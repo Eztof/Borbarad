@@ -494,16 +494,20 @@ body {
 /* ===== Modals ===== */
 #modal-root {
     position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.5);
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    display: none;            /* verstecken wenn leer */
+    pointer-events: none;     /* keine Klicks abfangen wenn leer */
+}
+
+#modal-root:not(:empty) {
     display: flex;
+    pointer-events: auto;
     align-items: center;
     justify-content: center;
-    z-index: 1000;
     padding: 20px;
+    z-index: 1000;
+    background: rgba(0,0,0,.5);
 }
 
 .modal .panel {
@@ -683,17 +687,4 @@ footer {
 
 #update-notice button {
     margin-left: 12px;
-}
-
-/* TEMPORÄR: Alles sichtbar und klickbar machen */
-* {
-    visibility: visible !important;
-    display: block !important;
-    opacity: 1 !important;
-    pointer-events: auto !important;
-}
-
-#app, #authbox, .btn {
-    display: block !important;
-    visibility: visible !important;
 }
