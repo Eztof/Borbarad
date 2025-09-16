@@ -1,9 +1,9 @@
 // Service Worker für Borbarad DSA Tool
 // Datei: sw.js (im Stammverzeichnis)
 
-const CACHE_NAME = 'borbarad-dsa-v1.2.3';
-const STATIC_CACHE = 'borbarad-static-v3';
-const DYNAMIC_CACHE = 'borbarad-dynamic-v3';
+const CACHE_NAME = 'borbarad-dsa-v1.2.4';
+const STATIC_CACHE = 'borbarad-static-v4';
+const DYNAMIC_CACHE = 'borbarad-dynamic-v4';
 
 // Dateien, die immer gecacht werden sollen
 const STATIC_FILES = [

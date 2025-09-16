@@ -93,11 +93,14 @@ function row(n) {
     const lastEncounter = n.last_encounter ? formatAvDate(n.last_encounter) : '–';
     const firstEncounter = n.first_encounter ? formatAvDate(n.first_encounter) : '–';
 
+    // Sicherheitscheck: Stelle sicher, dass visibleColumns ein Array ist
+    const visibleColumns = state.nscTableSettings?.visibleColumns || [];
+    
     // Bestimme, welche Spalten angezeigt werden sollen
-    const showName = state.nscTableSettings?.visibleColumns.includes('name') || false;
-    const showFirstEncounter = state.nscTableSettings?.visibleColumns.includes('first_encounter') || false;
-    const showLastEncounter = state.nscTableSettings?.visibleColumns.includes('last_encounter') || false;
-    const showNotes = state.nscTableSettings?.visibleColumns.includes('notes_count') || false;
+    const showName = visibleColumns.includes('name');
+    const showFirstEncounter = visibleColumns.includes('first_encounter');
+    const showLastEncounter = visibleColumns.includes('last_encounter');
+    const showNotes = visibleColumns.includes('notes_count');
 
     let html = `<tr data-id="${n.id}" class="nsc-row">`;
     if (showName) {
