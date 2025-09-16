@@ -221,10 +221,12 @@ export async function renderNSCs() {
 
     // Lade die Benutzereinstellungen
     const profileSettings = await loadProfileSettings();
-    state.nscTableSettings = profileSettings || {
-        sortField: 'name',
-        sortDir: 1,
-        visibleColumns: ['name', 'last_encounter', 'notes_count']
+    
+    // Sicherstellen, dass die Einstellungen immer definiert sind
+    state.nscTableSettings = {
+        sortField: profileSettings?.sortField || 'name',
+        sortDir: profileSettings?.sortDir || 1,
+        visibleColumns: profileSettings?.visibleColumns || ['name', 'last_encounter', 'notes_count']
     };
 
     // Sortiere die Liste nach den Einstellungen
