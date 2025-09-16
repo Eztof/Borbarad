@@ -684,3 +684,16 @@ footer {
 #update-notice button {
     margin-left: 12px;
 }
+
+/* TEMPORÄR: Alles sichtbar und klickbar machen */
+* {
+    visibility: visible !important;
+    display: block !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+}
+
+#app, #authbox, .btn {
+    display: block !important;
+    visibility: visible !important;
+}

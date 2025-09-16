@@ -187,25 +187,23 @@
 }
 
 /* ===== High-DPI Display Optimierungen ===== */
+/*
 @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 2dppx) {
-    /* Schärfere Bilder für Retina-Displays */
     img {
         image-rendering: -webkit-optimize-contrast;
         image-rendering: crisp-edges;
     }
-
-    /* Dünnere Linien für High-DPI */
     .table th,
     .table td {
         border-width: 0.5px;
     }
-
     .card,
     .input,
     .btn {
         border-width: 0.5px;
     }
 }
+*/
 
 /* ===== Druck-Stile ===== */
 @media print {

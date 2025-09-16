@@ -54,7 +54,7 @@ function render(){
         renderLocked();
         return;
     }
-    const handler = routes[curBase] || renderHome;
+    const handler = routes[curBase] || renderTags;
     handler();
 }
 
