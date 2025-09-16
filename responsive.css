@@ -843,8 +843,8 @@ textarea {
   .mobile-cards-container {
     display: flex;
     flex-direction: column;
-    gap: 16px;
-  }
+    gap: 16px; /* Abstand zwischen den Karten */
+}
   
   .mobile-card {
     background: var(--panel);
@@ -932,4 +932,49 @@ textarea {
   #mobile-objs {
     display: none;
   }
+}
+
+
+.mobile-cards-container {
+    display: flex;
+    flex-direction: column;
+    gap: 16px; /* Abstand zwischen den Karten */
+}
+
+.mobile-card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.mobile-card:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.mobile-card-header {
+    margin-bottom: 12px;
+}
+
+.mobile-card-body {
+    font-size: 14px;
+}
+
+.mobile-card-item {
+    margin-bottom: 8px; /* Abstand zwischen den Items */
+}
+
+.mobile-card-label {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: normal;
+    margin-right: 4px;
+}
+
+.mobile-card-value {
+    font-size: 14px;
+    color: var(--text);
 }

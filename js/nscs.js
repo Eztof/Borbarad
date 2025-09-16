@@ -1,8 +1,8 @@
 // js/nscs.js
-import { supabase } from './supabaseClient.js';
+import { supabase, uploadImage } from './supabaseClient.js';
 import { state } from './state.js';
-import { modal, empty, section } from './components.js';
-import { htmlesc } from './utils.js';
+import { section, modal, formRow, empty, avatar, avDateInputs } from './components.js';
+import { htmlesc, formatAvDate, readDatePickerAv } from './utils.js';
 
 /* ============ API ============ */
 async function listNSCs() {
@@ -250,10 +250,9 @@ export async function renderNSCs() {
 
     // Zähle die Notizen pro NSC
     const noteCounts = {};
-    const allNotes = await Promise.all(items.map(async (n) => {
+    await Promise.all(items.map(async (n) => {
         const notes = await getNSCNotes(n.id, state.user.id);
         noteCounts[n.id] = notes.length;
-        return notes;
     }));
 
     // Füge die Anzahl der Notizen zu jedem NSC hinzu
@@ -386,7 +385,9 @@ export async function renderNSCs() {
 
 /* ============ Detail-Modal ============ */
 async function showNSC(n) {
+    // Lade die Notizen für diesen NSC
     const notes = await getNSCNotes(n.id, state.user.id);
+    
     const root = modal(`
         <div class="grid">
             <div>
@@ -414,7 +415,29 @@ async function showNSC(n) {
                 </div>
                 <div class="card">
                     <div class="label">Notizen (${notes.length})</div>
-                    <div id="notes-list" style="max-height:200px;overflow:auto;"></div>
+                    <div id="notes-list" style="max-height:200px;overflow:auto;">
+                        ${notes.map(note => `
+                            <div class="card" style="margin-bottom:8px;">
+                                <div style="display:flex;justify-content:space-between;align-items:center;">
+                                    <strong>${htmlesc(note.title)}</strong>
+                                    <div style="font-size:12px;color:var(--muted);">
+                                        ${note.is_private ? 'Privat' : 'Öffentlich'} · 
+                                        ${new Date(note.created_at).toLocaleString('de-DE')}
+                                    </div>
+                                </div>
+                                <div style="white-space:pre-wrap;margin-top:4px;">
+                                    ${htmlesc(note.content || '')}
+                                </div>
+                                ${note.user_id === state.user.id ? `
+                                    <div style="display:flex;gap:4px;margin-top:8px;">
+                                        <button class="btn secondary small edit-note-btn" data-id="${note.id}">Bearbeiten</button>
+                                        <button class="btn warn small delete-note-btn" data-id="${note.id}">Löschen</button>
+                                    </div>
+                                ` : ''}
+                            </div>
+                        `).join('')}
+                    </div>
+                    <button class="btn" id="add-note-btn" style="margin-top:12px;">+ Notiz hinzufügen</button>
                 </div>
                 <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
                     <button class="btn secondary" id="nsc-history">Verlauf</button>
@@ -425,22 +448,6 @@ async function showNSC(n) {
         </div>
     `);
 
-    // Zeige die Notizen
-    const notesList = root.querySelector('#notes-list');
-    notes.forEach(note => {
-        const noteEl = document.createElement('div');
-        noteEl.className = 'card';
-        noteEl.style.marginBottom = '8px';
-        noteEl.innerHTML = `
-            <div style="display:flex;justify-content:space-between;align-items:center;">
-                <strong>${htmlesc(note.title)}</strong>
-                <div style="font-size:12px;color:var(--muted);">${note.is_private ? 'Privat' : 'Öffentlich'} · ${new Date(note.created_at).toLocaleString('de-DE')}</div>
-            </div>
-            <div style="white-space:pre-wrap;margin-top:4px;">${htmlesc(note.content || '')}</div>
-        `;
-        notesList.appendChild(noteEl);
-    });
-
     // Event Listener
     root.querySelector('#nsc-close').onclick = () => root.innerHTML = '';
     root.querySelector('#nsc-edit').onclick = () => {
@@ -448,6 +455,136 @@ async function showNSC(n) {
         showEditNSC(n);
     };
     root.querySelector('#nsc-history').onclick = () => showHistoryNSC(n.id);
+    
+    // Button: Notiz hinzufügen
+    root.querySelector('#add-note-btn').onclick = () => {
+        showAddNoteModal(n.id, root);
+    };
+    
+    // Button: Notiz bearbeiten
+    root.querySelectorAll('.edit-note-btn').forEach(button => {
+        button.onclick = (e) => {
+            const noteId = e.target.dataset.id;
+            const note = notes.find(n => n.id === noteId);
+            if (note) {
+                showEditNoteModal(note, n.id, root);
+            }
+        };
+    });
+    
+    // Button: Notiz löschen
+    root.querySelectorAll('.delete-note-btn').forEach(button => {
+        button.onclick = async (e) => {
+            if (!confirm('Diese Notiz wirklich löschen?')) return;
+            const noteId = e.target.dataset.id;
+            try {
+                await deleteNSCNote(noteId);
+                // Modal neu laden, um aktualisierte Liste anzuzeigen
+                root.innerHTML = '';
+                showNSC(n);
+            } catch (err) {
+                alert(`Fehler beim Löschen: ${err.message}`);
+            }
+        };
+    });
+}
+
+// Modal zum Hinzufügen einer neuen Notiz
+function showAddNoteModal(nscId, parentModal) {
+    const root = modal(`
+        <h3>Neue Notiz hinzufügen</h3>
+        ${formRow('Titel', '<input class="input" id="note-title" placeholder="Titel der Notiz" />')}
+        ${formRow('Inhalt', '<textarea class="input" id="note-content" rows="5" placeholder="Inhalt der Notiz"></textarea>')}
+        <div class="row">
+            <input type="checkbox" id="note-private" checked />
+            <label for="note-private">Privat (nur für mich sichtbar)</label>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+            <button class="btn secondary" id="cancel-note">Abbrechen</button>
+            <button class="btn" id="save-note">Speichern</button>
+        </div>
+    `);
+
+    root.querySelector('#cancel-note').onclick = () => root.innerHTML = '';
+    root.querySelector('#save-note').onclick = async () => {
+        const title = document.getElementById('note-title').value.trim();
+        const content = document.getElementById('note-content').value.trim();
+        const isPrivate = document.getElementById('note-private').checked;
+
+        if (!title) {
+            alert('Bitte gib einen Titel ein.');
+            return;
+        }
+
+        try {
+            await createNSCNote(nscId, state.user.id, title, content, isPrivate);
+            // Schließe das Notiz-Modal und lade das NSC-Modal neu
+            root.innerHTML = '';
+            parentModal.innerHTML = '';
+            const nsc = await supabase.from('nscs').select('*').eq('id', nscId).single();
+            if (nsc.data) {
+                showNSC(nsc.data);
+            }
+        } catch (err) {
+            alert(`Fehler beim Hinzufügen: ${err.message}`);
+        }
+    };
+}
+
+// Modal zum Bearbeiten einer bestehenden Notiz
+function showEditNoteModal(note, nscId, parentModal) {
+    const root = modal(`
+        <h3>Notiz bearbeiten</h3>
+        ${formRow('Titel', `<input class="input" id="note-title" value="${htmlesc(note.title)}" />`)}
+        ${formRow('Inhalt', `<textarea class="input" id="note-content" rows="5">${htmlesc(note.content || '')}</textarea>`)}
+        <div class="row">
+            <input type="checkbox" id="note-private" ${note.is_private ? 'checked' : ''} />
+            <label for="note-private">Privat (nur für mich sichtbar)</label>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+            <button class="btn secondary" id="cancel-note">Abbrechen</button>
+            <button class="btn warn" id="delete-note">Löschen</button>
+            <button class="btn" id="save-note">Speichern</button>
+        </div>
+    `);
+
+    root.querySelector('#cancel-note').onclick = () => root.innerHTML = '';
+    root.querySelector('#delete-note').onclick = async () => {
+        if (!confirm('Diese Notiz wirklich löschen?')) return;
+        try {
+            await deleteNSCNote(note.id);
+            root.innerHTML = '';
+            parentModal.innerHTML = '';
+            const nsc = await supabase.from('nscs').select('*').eq('id', nscId).single();
+            if (nsc.data) {
+                showNSC(nsc.data);
+            }
+        } catch (err) {
+            alert(`Fehler beim Löschen: ${err.message}`);
+        }
+    };
+    root.querySelector('#save-note').onclick = async () => {
+        const title = document.getElementById('note-title').value.trim();
+        const content = document.getElementById('note-content').value.trim();
+        const isPrivate = document.getElementById('note-private').checked;
+
+        if (!title) {
+            alert('Bitte gib einen Titel ein.');
+            return;
+        }
+
+        try {
+            await updateNSCNote(note.id, title, content, isPrivate);
+            root.innerHTML = '';
+            parentModal.innerHTML = '';
+            const nsc = await supabase.from('nscs').select('*').eq('id', nscId).single();
+            if (nsc.data) {
+                showNSC(nsc.data);
+            }
+        } catch (err) {
+            alert(`Fehler beim Speichern: ${err.message}`);
+        }
+    };
 }
 
 /* ============ Neu anlegen (jetzt mit "Aktiv") ============ */
