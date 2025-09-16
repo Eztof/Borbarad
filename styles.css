@@ -1,306 +1,342 @@
-:root{
-  /* Borbaradianisches Dark-Red Theme – kontraststärker */
-  --bg:#070507;
-  --panel:#151016;
-  --panel-soft:#1a141b;
-  --muted:#d2c5cb;
-  --text:#f8f3f6;
-  --accent:#c22f2f;
-  --accent2:#e0a24a;
-  --good:#46d990;
-  --bad:#e35674;
-
-  --line:#6e3f49;
-  --line-strong:#9e5c6b;
-  --line-soft:#3a252b;
-
-  --shadow:0 14px 40px rgba(0,0,0,.55);
+/* ===== Grundlegende Stile ===== */
+:root {
+    --bg: #0e0a0f;
+    --panel: #140e15;
+    --panel-soft: #120d12;
+    --text: #e0d0e0;
+    --muted: #a090a0;
+    --line: #2a202b;
+    --line-soft: #221a23;
+    --line-strong: #3a303b;
+    --accent: #c22f2f;
+    --accent2: #a02828;
+    --success: #4CAF50;
+    --warn: #ff9800;
+    --mobile-padding: 16px;
+    --tap-target: 44px;
 }
 
-/* ===== Global ===== */
-*{box-sizing:border-box}
-html,body{height:100%;overflow-x:hidden}
-body{margin:0;background:var(--bg);color:var(--text);font:16px/1.45 system-ui,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial}
-a{color:inherit}
-
-/* ===== Topbar ===== */
-.topbar{
-  position:sticky;top:0;z-index:10;
-  display:flex;gap:16px;align-items:center;justify-content:space-between;
-  padding:10px 16px;background:#0e0a0f;border-bottom:1px solid var(--line);
-  box-shadow:0 3px 0 rgba(206,66,66,.05);
-}
-.brand{font-weight:700;letter-spacing:.3px}
-.menu a{color:var(--muted);text-decoration:none;margin:0 8px;padding:6px 10px;border-radius:8px;border:1px solid transparent}
-.menu a:hover,.menu a.active{background:#120d12;color:var(--text);border-color:var(--line-soft)}
-.authbox{display:flex;gap:8px;align-items:center}
-
-/* ===== Controls / Cards ===== */
-.btn{background:var(--accent);color:#fff;border:0;padding:8px 12px;border-radius:10px;cursor:pointer;font-weight:700;box-shadow:inset 0 -1px 0 rgba(0,0,0,.25)}
-.btn.secondary{background:#261820;color:var(--text);border:1px solid var(--line)}
-.btn.warn{background:var(--bad);color:#fff}
-.btn:disabled{opacity:.6;cursor:not-allowed}
-.input,select,textarea{width:100%;background:#120d12;color:var(--text);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
-select.input{padding-right:28px}
-.label{font-size:12px;color:var(--muted);margin-bottom:4px}
-.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;box-shadow:var(--shadow)}
-.app{max-width:1100px;margin:20px auto;padding:10px;display:grid;gap:14px}
-
-/* ===== Tabellen ===== */
-.table{width:100%;border-collapse:collapse}
-.table th,.table td{border-bottom:1px solid var(--line-soft);padding:8px 6px;text-align:left;vertical-align:top}
-.table th{font-size:12px;color:var(--muted);cursor:pointer}
-.table tr:hover{background:var(--panel-soft)}
-
-/* ===== Hilfsklassen ===== */
-.toolbar{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap}
-.kbd{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;background:#100a10;border:1px solid var(--line);border-radius:8px;padding:2px 6px;color:var(--muted)}
-.tags{display:flex;gap:6px;flex-wrap:wrap}
-.tag{background:#120d12;border:1px solid var(--line-soft);border-radius:999px;padding:2px 8px;color:var(--muted);font-size:12px}
-.grid{display:grid;grid-template-columns:2fr 1fr;gap:14px}
-.empty{padding:30px;text-align:center;color:var(--muted)}
-.small{font-size:12px;color:var(--muted)}
-
-/* ===== Modal ===== */
-.modal{position:fixed;inset:0;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;padding:20px}
-.modal .panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px;max-width:860px;width:100%}
-
-/* ===== Externe Widgets – Grundlook beibehalten ===== */
-.fc{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px}
-
-/* ===== Heldenliste + LP/AP-Balken ===== */
-.hero-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
-.hero-card{background:#120d12;border:1px solid var(--line);border-radius:12px;padding:10px}
-.hero-name{font-weight:700;margin:0 0 8px}
-.kv{display:flex;gap:8px;align-items:center;justify-content:space-between}
-.bar{height:14px;background:#0b080b;border:1px solid var(--line);border-radius:999px;overflow:hidden;position:relative}
-.bar .fill{height:100%;background:linear-gradient(90deg,var(--good),#61e8b1);width:0%}
-.bar.warn .fill{background:linear-gradient(90deg,var(--bad),#ff8aa6)}
-.bar .mark{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px;color:#ffeef6}
-
-/* ===== Tag-Suggest ===== */
-.suggest-wrap{position:relative}
-.suggest{position:absolute;left:0;right:0;top:calc(100% + 4px);background:#1a1218;border:1px solid var(--line);border-radius:10px;z-index:6;max-height:220px;overflow:auto}
-.suggest-item{padding:6px 8px;cursor:pointer;border-bottom:1px solid var(--line-soft)}
-.suggest-item:last-child{border-bottom:0}
-.suggest-item:hover{background:#22171f}
-
-/* ===== RTE (Tagebuch) ===== */
-.rte-toolbar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}
-.rte-toolbar .btn{height:30px;padding:4px 10px}
-.rte-editor{min-height:180px;background:#120d12;border:1px solid var(--line);border-radius:12px;padding:10px}
-.rte-editor:focus{outline:1px solid var(--line-strong)}
-.rte-view{min-height:80px}
-.rte-signature{margin-top:10px;opacity:.85;font-style:italic;text-align:right}
-
-/* ===== Aventurischer Monats-Kalender ===== */
-.cal-wrap{border:1px solid var(--line);border-radius:14px;background:#120d12;box-shadow:var(--shadow)}
-.cal-toolbar{display:flex;gap:8px;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap}
-.cal-left{display:flex;gap:8px;align-items:center}
-.cal-right{display:flex;gap:8px;align-items:center}
-.cal-title{font-weight:700}
-.cal-legend{display:flex;gap:10px;align-items:center}
-.cal-legend label{display:flex;gap:6px;align-items:center;font-size:13px;color:var(--muted)}
-.cal-legend input[type=checkbox]{accent-color:var(--accent)}
-
-.cal-grid{
-  display:grid;
-  grid-template-columns:repeat(6,1fr); /* 6 Spalten × 5 Reihen = 30 Tage */
-  gap:10px;
-}
-.cal-cell{
-  min-height:110px;background:#0f0a10;border:1px solid var(--line);border-radius:12px;
-  padding:8px;display:flex;flex-direction:column;gap:6px
-}
-.cal-cell:hover{outline:1px solid var(--line-strong)}
-.cal-day{font-size:12px;color:var(--muted)}
-.cal-evts{display:flex;flex-direction:column;gap:4px}
-.cal-empty{opacity:.4}
-
-.chip{
-  display:inline-flex;align-items:center;gap:6px;
-  padding:4px 8px;border-radius:999px;font-size:12px;
-  border:1px solid var(--line-strong);background:#1b1218;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-}
-.chip.story{border-color:#734bb4;background:rgba(115,75,180,.15)}
-.chip.nsc{border-color:#c22f2f;background:rgba(194,47,47,.14)}
-.chip.object{border-color:#e0a24a;background:rgba(224,162,74,.14)}
-.chip.diary{border-color:#46d990;background:rgba(70,217,144,.14)} /* Tagebuch */
-
-.cal-today{box-shadow:0 0 0 2px var(--accent2) inset}
-.cal-more{font-size:12px;color:var(--muted)}
-
-/* Modal Tagesliste */
-.daylist h3{margin:0 0 8px 0}
-.daylist .chip{margin:4px 0}
-
-/* Mobile */
-@media (max-width: 760px){
-  .row{grid-template-columns:1fr}
-  .grid{grid-template-columns:1fr}
-  .cal-grid{grid-template-columns:repeat(3,1fr)}
+* {
+    box-sizing: border-box;
 }
 
-
-/* === Geldbörse UI === */
-
-/* Reihe für jede Münze */
-.purse-row {
-    margin-bottom: 16px;
+body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    line-height: 1.6;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
 }
 
-.purse-row label {
-    display: block;
-    margin-bottom: 6px;
-    font-weight: 500;
-}
-
-/* Container für Input und Buttons */
-.purse-controls {
+/* ===== Topbar & Navigation ===== */
+.topbar {
+    background: var(--panel);
+    padding: 16px var(--mobile-padding);
+    border-bottom: 1px solid var(--line);
     display: flex;
     align-items: center;
-    gap: 8px; /* Abstand zwischen Elementen */
-}
-
-/* Eingabefeld */
-.purse-input {
-    flex-grow: 1; /* Nimmt den verfügbaren Platz ein */
-    text-align: center; /* Zentriert den Text/Wert im Input */
-    padding: 8px;
-    /* Optional: Breite begrenzen */
-    /* max-width: 100px; */
-}
-
-/* Plus/Minus Buttons */
-.purse-inc, .purse-dec {
-    width: 40px; /* Feste Breite */
-    height: 40px; /* Feste Höhe, quadratisch */
-    min-width: auto; /* Überschreibt eventuelle Standard-Btn-Breite */
-    padding: 0; /* Entfernt inneren Padding */
-    font-size: 18px; /* Größere Schrift für + und - */
-    font-weight: bold;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    /* Optional: Runde Buttons */
-    /* border-radius: 50%; */
-}
-
-/* Hervorhebung der Gesamtsumme */
-.purse-total-display {
-    font-size: 1.2em; /* Etwas größere Schrift */
-    font-weight: bold;
-    color: #FFD700; /* Goldene Farbe, passt zum Thema */
-    background-color: rgba(255, 215, 0, 0.1); /* Sehr helles goldenes Hintergrund-Tint */
-    padding: 10px;
-    border-radius: 8px;
-    text-align: center;
-    margin-bottom: 15px; /* Abstand zur detaillierten Liste */
-    border: 1px solid rgba(255, 215, 0, 0.3); /* Sehr feiner goldener Rahmen */
-}
-
-/* Optional: Runde Buttons */
-/*
-.purse-inc, .purse-dec {
-    border-radius: 50%;
-}
-*/
-/* === Geldbörse UI === */
-
-/* ... (vorhergehende CSS-Regeln) ... */
-
-/* Hervorhebung der Gesamtsumme */
-.purse-total-display {
-    font-size: 1.2em; /* Etwas größere Schrift */
-    font-weight: bold;
-    color: #FFD700; /* Goldene Farbe, passt zum Thema */
-    background-color: rgba(255, 215, 0, 0.1); /* Sehr helles goldenes Hintergrund-Tint */
-    padding: 10px;
-    border-radius: 8px;
-    text-align: center;
-    margin-bottom: 15px; /* Abstand zur detaillierten Liste */
-    border: 1px solid rgba(255, 215, 0, 0.3); /* Sehr feiner goldener Rahmen */
-}
-
-/* Reihe für jede Münze */
-.purse-row {
-    margin-bottom: 16px;
-}
-/* ... (restliche CSS-Regeln bleiben gleich) ... */
-
-/* ===== Stammbaum-Karten ===== */
-.family-tree-container {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 16px;
-    margin-top: 16px;
-}
-.family-card {
-    background: var(--panel-soft);
-    border: 1px solid var(--line);
-    border-radius: 12px;
-    padding: 16px;
-    box-shadow: var(--shadow);
-}
-.family-header {
-    margin-bottom: 12px;
-    padding-bottom: 8px;
-    border-bottom: 1px solid var(--line-soft);
-}
-.family-body {
-    margin-bottom: 16px;
-    line-height: 1.5;
-}
-.family-footer {
-    display: flex;
-    gap: 8px;
-    justify-content: flex-end;
-}
-
-/* ===== Interaktiver Stammbaum ===== */
-#canvas-container {
-    position: relative;
-    width: 100%;
-    height: 70vh;
-    overflow: hidden;
-    background: #1a1218;
-    border: 1px solid var(--line);
-    border-radius: 12px;
-    margin-top: 16px;
-}
-
-#family-canvas {
-    position: absolute;
+    justify-content: space-between;
+    position: sticky;
     top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    cursor: grab;
-    user-select: none;
+    z-index: 100;
 }
 
-#family-canvas:active {
-    cursor: grabbing;
+.brand {
+    font-weight: bold;
+    font-size: 18px;
+    text-decoration: none;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
+.brand img {
+    height: 24px;
+    width: auto;
+}
 
-/* ===== NSC-Karten für Mobile – ohne Footer-Streifen und mit Abstand ===== */
-.mobile-card {
-    border-bottom: 1px solid var(--line-soft);
-    margin-bottom: 8px; /* Kleine Lücke zwischen den Karten */
-    padding: 12px 16px;
-    border-radius: 8px;
-    background: var(--panel-soft);
+.menu {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
+.menu a {
+    padding: 8px 12px;
+    text-decoration: none;
+    color: var(--muted);
+    border-radius: 6px;
+    font-size: 14px;
     transition: all 0.2s ease;
 }
 
-.mobile-card:hover {
+.menu a:hover,
+.menu a.active {
+    color: var(--text);
+    background: var(--panel-soft);
+}
+
+.menu a.active {
+    background: var(--accent2);
+    color: white;
+}
+
+/* ===== Hauptinhalt ===== */
+#app {
+    flex: 1;
+    padding: 24px var(--mobile-padding);
+    max-width: 1200px;
+    margin: 0 auto;
+    width: 100%;
+}
+
+/* ===== Karten & Container ===== */
+.card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 24px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.card h2 {
+    margin: 0 0 16px 0;
+    font-size: 24px;
+}
+
+.card h3 {
+    margin: 0 0 12px 0;
+    font-size: 18px;
+}
+
+/* ===== Formulare & Eingaben ===== */
+.input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel-soft);
+    color: var(--text);
+    font-size: 16px;
+    transition: border-color 0.2s ease;
+}
+
+.input:focus {
+    outline: none;
+    border-color: var(--accent);
     background: var(--panel);
 }
 
+.label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 14px;
+    color: var(--muted);
+}
+
+.row {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 16px;
+    align-items: flex-start;
+}
+
+/* ===== Buttons ===== */
+.btn {
+    padding: 10px 16px;
+    border: none;
+    border-radius: 8px;
+    background: var(--accent);
+    color: white;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-height: var(--tap-target);
+    font-size: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.btn:hover {
+    background: var(--accent2);
+    transform: translateY(-1px);
+}
+
+.btn:active {
+    transform: translateY(0);
+}
+
+.btn.secondary {
+    background: var(--panel-soft);
+    color: var(--text);
+    border: 1px solid var(--line);
+}
+
+.btn.secondary:hover {
+    background: var(--panel);
+}
+
+.btn.warn {
+    background: var(--warn);
+    color: white;
+}
+
+.btn.warn:hover {
+    background: #e68900;
+}
+
+/* ===== Tabellen ===== */
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0;
+}
+
+.table th,
+.table td {
+    padding: 12px 8px;
+    text-align: left;
+    border-bottom: 1px solid var(--line-soft);
+}
+
+.table th {
+    font-weight: bold;
+    background: var(--panel-soft);
+    border-bottom: 2px solid var(--line-strong);
+}
+
+.table tr:hover {
+    background: var(--panel-soft);
+}
+
+/* ===== Badges & Tags ===== */
+.badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--panel-soft);
+    border: 1px solid var(--line-soft);
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.tag {
+    background: var(--panel-soft);
+    border: 1px solid var(--line-soft);
+    border-radius: 999px;
+    padding: 2px 8px;
+    color: var(--muted);
+    font-size: 12px;
+    display: inline-block;
+    margin: 2px 0;
+}
+
+.tag.warn {
+    background: rgba(255, 152, 0, 0.2);
+    border-color: rgba(255, 152, 0, 0.5);
+    color: #ff9800;
+}
+
+/* ===== Avatare ===== */
+.avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--panel-soft);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    color: var(--muted);
+    border: 1px solid var(--line-soft);
+}
+
+/* ===== Rich Text Editor ===== */
+.rte-toolbar {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    padding: 8px;
+    background: var(--panel-soft);
+    border: 1px solid var(--line);
+    border-radius: 8px 8px 0 0;
+    margin-bottom: 0;
+}
+
+.rte-editor {
+    min-height: 200px;
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    background: var(--panel);
+    color: var(--text);
+    outline: none;
+}
+
+.rte-editor:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.rte-view {
+    padding: 16px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    margin: 16px 0;
+    min-height: 100px;
+}
+
+.rte-signature {
+    font-style: italic;
+    color: var(--muted);
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line-soft);
+}
+
+/* ===== Mobile Cards ===== */
+.mobile-cards-container {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 0 8px;
+}
+
+.mobile-card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    transition: all 0.2s ease;
+    cursor: pointer;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.mobile-card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
 .mobile-card-header {
-    margin-bottom: 8px;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
 }
 
 .mobile-card-body {
@@ -308,7 +344,9 @@ select.input{padding-right:28px}
 }
 
 .mobile-card-item {
-    margin-bottom: 6px;
+    margin-bottom: 8px;
+    display: flex;
+    flex-direction: column;
 }
 
 .mobile-card-label {
@@ -321,53 +359,328 @@ select.input{padding-right:28px}
 .mobile-card-value {
     font-size: 14px;
     color: var(--text);
+    word-break: break-word;
 }
 
-/* ===== Tabelle – Anpassungen für die Spalten ===== */
-.table th {
-    padding: 12px 8px;
+/* ===== Helden-Karten ===== */
+.hero-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+    margin-top: 16px;
+}
+
+.hero-card {
+    background: var(--panel-soft);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 16px;
+    display: grid;
+    grid-template-areas:
+        "name name"
+        "kv bar"
+        "kv bar";
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto 1fr;
+    gap: 8px;
+    align-items: center;
+}
+
+.hero-name {
+    grid-area: name;
     font-weight: bold;
+    font-size: 16px;
+    margin: 0;
+}
+
+.kv {
+    grid-area: kv;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.kv .small {
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.bar {
+    grid-area: bar;
+    height: 20px;
     background: var(--panel);
-    border-bottom: 1px solid var(--line-strong);
-}
-
-.table td {
-    padding: 12px 8px;
-    border-bottom: 1px solid var(--line-soft);
-}
-
-/* ===== Einstellungsmodal ===== */
-#settings-btn {
-    min-width: 40px;
-    padding: 8px;
-    font-size: 14px;
-    height: 36px;
-}
-
-#settings-btn:hover {
-    background: var(--accent2);
-    color: white;
-}
-
-/* ===== Notizen im Detail-Modal ===== */
-#notes-list {
-    padding: 8px 0;
-}
-
-#notes-list .card {
     border: 1px solid var(--line-soft);
-    border-radius: 6px;
-    padding: 8px;
-    margin-bottom: 8px;
+    border-radius: 999px;
+    position: relative;
+    overflow: hidden;
 }
 
-#notes-list .card strong {
-    display: block;
+.bar .fill {
+    height: 100%;
+    background: var(--success);
+    width: 0;
+    transition: width 0.3s ease;
+}
+
+.bar.warn .fill {
+    background: var(--warn);
+}
+
+.bar .mark {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 10px;
+    color: var(--text);
+    font-weight: bold;
+    pointer-events: none;
+}
+
+/* ===== Kalender ===== */
+.cal-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
+    margin-top: 16px;
+}
+
+.cal-header {
+    text-align: center;
+    font-weight: bold;
+    padding: 8px;
+    background: var(--panel-soft);
+    border-radius: 8px;
+}
+
+.cal-cell {
+    min-height: 80px;
+    background: var(--panel-soft);
+    border: 1px solid var(--line-soft);
+    border-radius: 8px;
+    padding: 8px;
+    position: relative;
+}
+
+.cal-day {
+    font-weight: bold;
     margin-bottom: 4px;
 }
 
-#notes-list .card div:last-child {
-    margin-top: 4px;
+.cal-event {
     font-size: 12px;
+    padding: 2px 4px;
+    margin: 2px 0;
+    border-radius: 4px;
+    background: var(--accent);
+    color: white;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cal-event.nsc {
+    background: #2196F3;
+}
+
+.cal-event.object {
+    background: #9C27B0;
+}
+
+.cal-event.diary {
+    background: #FF9800;
+}
+
+/* ===== Modals ===== */
+#modal-root {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 20px;
+}
+
+.modal .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 24px;
+    max-width: 90vw;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    animation: modalFadeIn 0.3s ease;
+}
+
+@keyframes modalFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ===== Hilfsklassen ===== */
+.small {
+    font-size: 14px;
+    color: var(--text);
+    opacity: 0.8;
+}
+
+.muted {
+    color: var(--text);
+    opacity: 0.7;
+}
+
+.empty {
+    padding: 30px;
+    text-align: center;
     color: var(--muted);
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 14px;
+}
+
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* ===== Footer ===== */
+footer {
+    text-align: center;
+    padding: 24px var(--mobile-padding);
+    color: var(--muted);
+    font-size: 14px;
+    border-top: 1px solid var(--line);
+    margin-top: 24px;
+}
+
+/* ===== Scroll to Top Button ===== */
+#scroll-to-top {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: var(--accent);
+    color: white;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 999;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    transition: all 0.3s ease;
+}
+
+#scroll-to-top:hover {
+    background: var(--accent2);
+    transform: translateY(-2px);
+}
+
+/* ===== Loading Spinner ===== */
+.loading-spinner {
+    display: inline-block;
+    width: 24px;
+    height: 24px;
+    border: 3px solid var(--panel-soft);
+    border-top: 3px solid var(--accent);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* ===== Suggest Dropdown ===== */
+.suggest {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 0 0 8px 8px;
+    z-index: 10;
+    max-height: 200px;
+    overflow-y: auto;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.suggest-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--line-soft);
+}
+
+.suggest-item:hover {
+    background: var(--panel-soft);
+}
+
+/* ===== Keyboard Shortcuts ===== */
+.kbd {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    background: #100a10;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 2px 6px;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+/* ===== Update Notice ===== */
+#update-notice {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    right: 20px;
+    background: var(--accent);
+    color: white;
+    padding: 12px;
+    border-radius: 8px;
+    font-size: 14px;
+    z-index: 1000;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+#update-notice button {
+    margin-left: 12px;
 }

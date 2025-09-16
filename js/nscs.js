@@ -94,6 +94,7 @@ function row(n) {
     const notesCount = n.notes_count || 0;
     const lastEncounter = n.last_encounter ? formatAvDate(n.last_encounter) : '–';
     const firstEncounter = n.first_encounter ? formatAvDate(n.first_encounter) : '–';
+    const whereabouts = htmlesc(n.whereabouts || '–');
 
     // Sicherheitscheck: Stelle sicher, dass visibleColumns ein Array ist
     const visibleColumns = state.nscTableSettings?.visibleColumns || [];
@@ -103,6 +104,7 @@ function row(n) {
     const showFirstEncounter = visibleColumns.includes('first_encounter');
     const showLastEncounter = visibleColumns.includes('last_encounter');
     const showNotes = visibleColumns.includes('notes_count');
+    const showWhereabouts = visibleColumns.includes('whereabouts'); // NEU: Verbleib
 
     let html = `<tr data-id="${n.id}" class="nsc-row">`;
     if (showName) {
@@ -114,6 +116,9 @@ function row(n) {
     if (showLastEncounter) {
         html += `<td class="small">${lastEncounter}</td>`;
     }
+    if (showWhereabouts) { // NEU: Verbleib-Spalte
+        html += `<td class="small">${whereabouts}</td>`;
+    }
     if (showNotes) {
         html += `<td class="small">${notesCount}</td>`;
     }
@@ -122,6 +127,58 @@ function row(n) {
 }
 
 function mobileCard(n) {
+    const notesCount = n.notes_count || 0;
+    const lastEncounter = n.last_encounter ? formatAvDate(n.last_encounter) : '–';
+    const firstEncounter = n.first_encounter ? formatAvDate(n.first_encounter) : '–';
+    const whereabouts = htmlesc(n.whereabouts || '–');
+
+    // Sicherheitscheck: Stelle sicher, dass visibleColumns ein Array ist
+    const visibleColumns = state.nscTableSettings?.visibleColumns || [];
+    
+    // Bestimme, welche Informationen angezeigt werden sollen
+    const showFirstEncounter = visibleColumns.includes('first_encounter');
+    const showLastEncounter = visibleColumns.includes('last_encounter');
+    const showWhereabouts = visibleColumns.includes('whereabouts'); // NEU: Verbleib
+    const showNotes = visibleColumns.includes('notes_count');
+
+    let bodyItems = '';
+
+    if (showFirstEncounter) {
+        bodyItems += `
+            <div class="mobile-card-item">
+                <span class="mobile-card-label">Erste Begegnung:</span>
+                <span class="mobile-card-value">${firstEncounter}</span>
+            </div>
+        `;
+    }
+
+    if (showLastEncounter) {
+        bodyItems += `
+            <div class="mobile-card-item">
+                <span class="mobile-card-label">Letzte Begegnung:</span>
+                <span class="mobile-card-value">${n.is_active ? formatAvDate(state.campaignDate) : lastEncounter}</span>
+            </div>
+        `;
+    }
+
+    if (showWhereabouts) { // NEU: Verbleib-Information
+        bodyItems += `
+            <div class="mobile-card-item">
+                <span class="mobile-card-label">Verbleib:</span>
+                <span class="mobile-card-value">${whereabouts}</span>
+            </div>
+        `;
+    }
+
+    if (showNotes) {
+        bodyItems += `
+            <div class="mobile-card-item">
+                <span class="mobile-card-label">Notizen:</span>
+                <span class="mobile-card-value">${notesCount}</span>
+            </div>
+        `;
+    }
+
     return `
         <div class="mobile-card" data-id="${n.id}" style="cursor: pointer;">
             <div class="mobile-card-header">
@@ -131,29 +188,19 @@ function mobileCard(n) {
                 </div>
             </div>
             <div class="mobile-card-body">
-                <div class="mobile-card-item">
-                    <span class="mobile-card-label">Erste Begegnung:</span>
-                    <span class="mobile-card-value">${n.first_encounter ? formatAvDate(n.first_encounter) : '–'}</span>
-                </div>
-                <div class="mobile-card-item">
-                    <span class="mobile-card-label">Letzte Begegnung:</span>
-                    <span class="mobile-card-value">${n.is_active ? formatAvDate(state.campaignDate) : (n.last_encounter ? formatAvDate(n.last_encounter) : '–')}</span>
-                </div>
-                <div class="mobile-card-item">
-                    <span class="mobile-card-label">Verbleib:</span>
-                    <span class="mobile-card-value">${htmlesc(n.whereabouts || '–')}</span>
-                </div>
+                ${bodyItems}
             </div>
         </div>
     `;
 }
 
 function renderSettingsModal(settings) {
-    const columns = ['name', 'first_encounter', 'last_encounter', 'notes_count'];
+    const columns = ['name', 'first_encounter', 'last_encounter', 'whereabouts', 'notes_count']; // NEU: 'whereabouts' hinzugefügt
     const columnLabels = {
         name: 'Name',
         first_encounter: 'Erste Begegnung',
         last_encounter: 'Letzte Begegnung',
+        whereabouts: 'Verbleib', // NEU: Verbleib
         notes_count: 'Anzahl Notizen'
     };
 
@@ -195,7 +242,7 @@ function renderSettingsModal(settings) {
     root.querySelector('#save-settings').onclick = async () => {
         const sortField = document.getElementById('sort-field').value;
         const sortDir = parseInt(document.getElementById('sort-dir').value);
-        const visibleColumns = Array.from(document.querySelectorAll('#col-name, #col-first_encounter, #col-last_encounter, #col-notes_count'))
+        const visibleColumns = Array.from(document.querySelectorAll('#col-name, #col-first_encounter, #col-last_encounter, #col-whereabouts, #col-notes_count')) // NEU: #col-whereabouts
             .filter(cb => cb.checked)
             .map(cb => cb.id.split('-')[1]);
 
@@ -232,7 +279,7 @@ export async function renderNSCs() {
     state.nscTableSettings = {
         sortField: profileSettings?.nsc_table_sort_field || 'name',
         sortDir: profileSettings?.nsc_table_sort_dir || 1,
-        visibleColumns: profileSettings?.nsc_table_visible_columns || ['name', 'last_encounter', 'notes_count']
+        visibleColumns: profileSettings?.nsc_table_visible_columns || ['name', 'last_encounter', 'whereabouts', 'notes_count'] // NEU: 'whereabouts' standardmäßig anzeigen
     };
 
     // Sortiere die Liste nach den Einstellungen
@@ -277,6 +324,7 @@ export async function renderNSCs() {
                             ${state.nscTableSettings.visibleColumns.includes('name') ? '<th data-sf="name">Name</th>' : ''}
                             ${state.nscTableSettings.visibleColumns.includes('first_encounter') ? '<th data-sf="first_encounter">Erste Begegnung</th>' : ''}
                             ${state.nscTableSettings.visibleColumns.includes('last_encounter') ? '<th data-sf="last_encounter">Letzte Begegnung</th>' : ''}
+                            ${state.nscTableSettings.visibleColumns.includes('whereabouts') ? '<th data-sf="whereabouts">Verbleib</th>' : ''} <!-- NEU: Verbleib-Spalte -->
                             ${state.nscTableSettings.visibleColumns.includes('notes_count') ? '<th data-sf="notes_count">Notizen</th>' : ''}
                         </tr>
                     </thead>
@@ -320,7 +368,7 @@ export async function renderNSCs() {
         mobileView.innerHTML = filtered.map(mobileCard).join('');
     });
 
-    // Sortier-Header (nur Desktop)
+    // Sortier-Header (nur Desktop) - KORRIGIERT
     document.querySelectorAll('th[data-sf]').forEach(th => {
         th.style.cursor = 'pointer';
         th.onclick = () => {
@@ -331,22 +379,29 @@ export async function renderNSCs() {
                 state.nscTableSettings.sortField = f;
                 state.nscTableSettings.sortDir = 1;
             }
+            
+            // Sortiere die Liste neu
             items = items.sort((a, b) => {
+                const field = state.nscTableSettings.sortField;
                 const dir = state.nscTableSettings.sortDir;
-                if (f === 'name') {
+
+                if (field === 'name') {
                     return dir * a.name.localeCompare(b.name);
-                } else if (f === 'first_encounter') {
+                } else if (field === 'first_encounter') {
                     const avA = new Date(a.first_encounter);
                     const avB = new Date(b.first_encounter);
                     return dir * (avA - avB);
-                } else if (f === 'last_encounter') {
+                } else if (field === 'last_encounter') {
                     const avA = new Date(a.last_encounter);
                     const avB = new Date(b.last_encounter);
                     return dir * (avA - avB);
                 }
                 return 0;
             });
+            
+            // Aktualisiere beide Views
             tbody.innerHTML = items.map(row).join('');
+            mobileView.innerHTML = items.map(mobileCard).join('');
         };
     });
 
@@ -635,7 +690,7 @@ function showAddNSC() {
             return;
         }
 
-        const { data: dup } = await supabase.from('nscs').select('id').eq('name', payload.name).maybeSingle();
+        const {  dup } = await supabase.from('nscs').select('id').eq('name', payload.name).maybeSingle();
         if (dup) {
             alert('Diesen NSC-Namen gibt es schon.');
             return;
