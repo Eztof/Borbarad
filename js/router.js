@@ -11,11 +11,13 @@ import { renderTags } from './tags.js';
 import { renderOpen } from './open.js';
 // *** NEU: Importiere die Authentifizierungsfunktionen ***
 import { showLogin, showRegister } from './auth.js';
+import { renderFamilyTree } from './familytree.js';
 
 // Routen-Zuordnung
 const routes = {
   '#/home': renderHome,
   '#/heroes': renderHeroes,
+  '#/familytree': renderFamilyTree,
   '#/money': renderMoney,
   '#/nscs': renderNSCs,
   '#/objects': renderObjects,

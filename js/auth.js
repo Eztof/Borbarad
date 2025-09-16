@@ -1,4 +1,4 @@
-// js/auth.js (Vollständiger relevanter Teil)
+// js/auth.js
 import { supabase } from './supabaseClient.js';
 import { state, setUser } from './state.js';
 import { renderAuthBox, modal } from './components.js';
