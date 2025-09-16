@@ -37,12 +37,12 @@ function setActiveLink(){
 }
 
 function renderLocked(){
-    // *** WICHTIG: Alle offenen Modals schließen ***
+    // *** WICHTIG: Alle offenen Modals schließen UND Event-Listener entfernen ***
     const modalRoot = document.getElementById('modal-root');
     if (modalRoot) {
-        modalRoot.innerHTML = '';
+        // Entferne das gesamte modal-root Element, um alle Event-Listener zu löschen
+        modalRoot.remove();
     }
-    
     const app = document.getElementById('app');
     app.innerHTML = `<div class="card"><h2>Zugang erforderlich</h2><div style="display:flex;gap:8px;margin-top:10px"><button class="btn secondary" id="btn-login">Login</button><button class="btn" id="btn-register">Registrieren</button></div></div>`;
 }
@@ -54,7 +54,7 @@ function render(){
         renderLocked();
         return;
     }
-    const handler = routes[curBase] || renderTags;
+    const handler = routes[curBase] || renderHome;
     handler();
 }
 
